@@ -1,0 +1,25 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment folders
+env/
+venv/
+.venv/
+envs/
+
+# Data
+data/raw/
+data/processed/
+data/interim/
+models/
+*.pkl
+*.h5
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
