@@ -1,13 +1,15 @@
-# Python_ML
+# Air Quality Analysis
 
-## Overview
-Short description of your project.
+This project analyzes air-quality data using Python and machine learning.
 
-## Quickstart
-1. Create env: `conda env create -f environment.yml`
-2. Activate: `conda activate ml_env`
-3. Preprocess data: `python -m src.data.make_dataset --input data/raw/AirFrance_2025-01-01.csv --output data/processed/airfrance.csv`
-4. Train: `python -m src.models.train --config configs/train.yaml`
+## Setup
+1. Create environment:
+   conda env create -f environment.yml
+2. Activate:
+   conda activate airquality-ml
 
-## Structure
-(brief tree or link to this document)
+## Project Structure
+- data/raw → original datasets
+- data/sample → small demo datasets
+- notebooks → Jupyter notebooks
+- src → Python scripts (data prep, models, visualization)
