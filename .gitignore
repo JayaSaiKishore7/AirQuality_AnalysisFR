@@ -9,7 +9,6 @@ venv/
 envs/
 
 # Data
-data/raw/
 data/processed/
 data/interim/
 models/
