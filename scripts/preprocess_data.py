@@ -29,7 +29,7 @@ def preprocess_raw_data():
         "type d'influence",
         "type d'évaluation",
         "type d'implantation",
-        "code site"
+        "code site",
     ]
 
     df = df[selected_cols].copy()
@@ -56,8 +56,17 @@ def preprocess_raw_data():
         "type d'influence",
         "type d'évaluation",
         "type d'implantation",
-        "code site"
+        "code site",
     ]
+
+    # map raw column names -> clean encoder file stem
+    encoder_name_map = {
+        "Polluant": "pollutant",
+        "type d'influence": "influence",
+        "type d'évaluation": "evaluation",
+        "type d'implantation": "implantation",
+        "code site": "site",
+    }
 
     encoders = {}
     for col in categorical_cols:
@@ -65,18 +74,23 @@ def preprocess_raw_data():
         df[col] = df[col].astype(str)
         df[f"{col}_encoded"] = le.fit_transform(df[col])
         encoders[col] = le
-        joblib.dump(le, os.path.join(encoder_dir, f"{col}_encoder.pkl"))
+
+        clean_name = encoder_name_map[col]  # e.g. "pollutant"
+        encoder_path = os.path.join(encoder_dir, f"{clean_name}_encoder.pkl")
+        joblib.dump(le, encoder_path)
 
     print("✔ Encoders saved.")
 
     # Rename encoded columns for consistency with modeling
-    df = df.rename(columns={
-        "Polluant_encoded": "pollutant_encoded",
-        "type d'influence_encoded": "influence_encoded",
-        "type d'évaluation_encoded": "evaluation_encoded",
-        "type d'implantation_encoded": "implantation_encoded",
-        "code site_encoded": "site_encoded",
-    })
+    df = df.rename(
+        columns={
+            "Polluant_encoded": "pollutant_encoded",
+            "type d'influence_encoded": "influence_encoded",
+            "type d'évaluation_encoded": "evaluation_encoded",
+            "type d'implantation_encoded": "implantation_encoded",
+            "code site_encoded": "site_encoded",
+        }
+    )
 
     # ---- 6. Create lag & rolling features (per site+pollutant grouped TS) ----
     df = df.sort_values(["pollutant_encoded", "site_encoded", "date"])
@@ -86,9 +100,9 @@ def preprocess_raw_data():
 
     df["rolling_3"] = (
         df.groupby(["pollutant_encoded", "site_encoded"])["valeur"]
-          .rolling(3)
-          .mean()
-          .reset_index(level=[0, 1], drop=True)
+        .rolling(3)
+        .mean()
+        .reset_index(level=[0, 1], drop=True)
     )
 
     # ---- 7. Remove missing lag rows ----
@@ -97,16 +111,23 @@ def preprocess_raw_data():
     # ---- 8. Final modeling features ----
     final_cols = [
         "valeur",
-        "Latitude", "Longitude",
+        "Latitude",
+        "Longitude",
         "date",
-        "hour", "day", "month", "year",
-        "weekday", "weekend",
+        "hour",
+        "day",
+        "month",
+        "year",
+        "weekday",
+        "weekend",
         "pollutant_encoded",
         "influence_encoded",
         "evaluation_encoded",
         "implantation_encoded",
         "site_encoded",
-        "lag_1", "lag_24", "rolling_3",
+        "lag_1",
+        "lag_24",
+        "rolling_3",
     ]
 
     df_final = df[final_cols].copy()
