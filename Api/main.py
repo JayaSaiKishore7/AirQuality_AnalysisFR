@@ -5,9 +5,8 @@ import os
 import joblib
 import pandas as pd
 
-# ----------------------------------------------------
+
 # App setup
-# ----------------------------------------------------
 app = FastAPI(title="Air Quality Forecast API")
 
 # Model path (best model saved by train_model.py)
@@ -30,9 +29,8 @@ FEATURE_COLS = [
     "lag_1", "lag_24", "rolling_3",
 ]
 
-# ----------------------------------------------------
+
 # Load label encoders (saved by preprocess_data.py)
-# ----------------------------------------------------
 ENCODER_DIR = os.path.join("models", "encoders")
 
 pollutant_le = joblib.load(os.path.join(ENCODER_DIR, "pollutant_encoder.pkl"))
@@ -41,9 +39,8 @@ evaluation_le = joblib.load(os.path.join(ENCODER_DIR, "evaluation_encoder.pkl"))
 implantation_le = joblib.load(os.path.join(ENCODER_DIR, "implantation_encoder.pkl"))
 site_le = joblib.load(os.path.join(ENCODER_DIR, "site_encoder.pkl"))
 
-# ----------------------------------------------------
+
 # Request / response schemas
-# ----------------------------------------------------
 class PredictionInput(BaseModel):
     """Low-level: expects already encoded numeric features."""
     Latitude: float
@@ -83,9 +80,7 @@ class PredictionOutput(BaseModel):
     predicted_valeur: float
 
 
-# ----------------------------------------------------
 # Routes
-# ----------------------------------------------------
 @app.get("/")
 def root():
     return {"message": "Air Quality Forecast API is running."}
@@ -113,7 +108,7 @@ def predict_raw(input_data: RawPredictionInput):
     - Use lag_1, lag_24, rolling_3 as given
     """
 
-    # 1. Parse datetime
+
     try:
         dt = datetime.fromisoformat(input_data.datetime)
     except ValueError:
@@ -129,7 +124,7 @@ def predict_raw(input_data: RawPredictionInput):
     weekday = dt.weekday()
     weekend = 1 if weekday in (5, 6) else 0
 
-    # 2. Encode categorical values
+    #  Encode categorical values
     try:
         pollutant_encoded = int(pollutant_le.transform([input_data.pollutant])[0])
         influence_encoded = int(influence_le.transform([input_data.influence])[0])
@@ -142,7 +137,7 @@ def predict_raw(input_data: RawPredictionInput):
             detail=f"Encoding error: {e}. Make sure the values exist in training data.",
         )
 
-    # 3. Build feature dict in the exact FEATURE_COLS order
+    # Build feature dict in the exact FEATURE_COLS order
     feature_dict = {
         "Latitude": input_data.Latitude,
         "Longitude": input_data.Longitude,
