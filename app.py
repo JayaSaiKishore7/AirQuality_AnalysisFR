@@ -2,261 +2,315 @@ import streamlit as st
 import pandas as pd
 import requests
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime
+from datetime import datetime, timedelta
+import plotly.graph_objects as go
+import plotly.express as px
 
-# Configuration
-API_BASE = "http://127.0.0.1:8000"
-DATA_PATH = "data/processed/df_raw_cleaned.csv"
+# ==================== CONFIGURATION ====================
+API_URL = "http://127.0.0.1:8000"
+DATA_FILE = "data/processed/df_raw_cleaned.csv"
 
-st.set_page_config(page_title="Air Quality Dashboard", layout="wide")
+# ==================== PAGE SETUP ====================
+st.set_page_config(
+    page_title="Air Quality Forecast",
+    page_icon="🌍",
+    layout="wide"
+)
 
-# Initialize session state
-if 'forecast_data' not in st.session_state:
-    st.session_state.forecast_data = None
-if 'last_pollutant' not in st.session_state:
-    st.session_state.last_pollutant = None
-if 'last_site' not in st.session_state:
-    st.session_state.last_site = None
-
-# Test API connection
-@st.cache_data(ttl=300)
+# ==================== HELPER FUNCTIONS ====================
 def test_api():
+    """Test API connection"""
     try:
-        response = requests.get(f"{API_BASE}/", timeout=3)
+        response = requests.get(f"{API_URL}/", timeout=3)
         return response.status_code == 200
     except:
         return False
 
-# Load data
-@st.cache_data(ttl=600)
-def load_data():
+def load_data_sample():
+    """Load sample data"""
     try:
-        df = pd.read_csv(DATA_PATH, parse_dates=['date'], nrows=10000)  # Load only first 10k rows for speed
+        # Load only essential columns
+        df = pd.read_csv(
+            DATA_FILE,
+            parse_dates=['date'],
+            usecols=['date', 'valeur', 'Latitude', 'Longitude', 
+                    'Polluant', 'code site', 'lag_1', 'lag_24', 'rolling_3'],
+            nrows=20000  # First 20k rows
+        )
         return df
     except Exception as e:
-        st.error(f"Error loading data: {e}")
+        st.error(f"❌ Error loading data: {e}")
         return None
 
-# Get metadata from API
-def get_metadata():
-    try:
-        response = requests.get(f"{API_BASE}/meta", timeout=5)
-        if response.status_code == 200:
-            return response.json()
-    except:
-        return None
-    return None
-
-# Main app
+# ==================== INITIALIZE ====================
 st.title("🌤️ Air Quality Forecast Dashboard")
+st.markdown("Real-time pollution forecasting for PACA region")
 
-# Sidebar
-st.sidebar.header("Settings")
+# Sidebar header
+st.sidebar.header("🔧 Configuration")
 
 # API Status
-api_ok = test_api()
-if api_ok:
+api_connected = test_api()
+if api_connected:
     st.sidebar.success("✅ API Connected")
 else:
     st.sidebar.error("❌ API Not Connected")
-    st.sidebar.info("Make sure FastAPI is running on port 8000")
+    st.sidebar.info("""
+    **To connect:**
+    1. Open a terminal
+    2. Run: `python Api/main.py`
+    3. Wait for server to start
+    4. Refresh this page
+    """)
 
 # Load data
-with st.spinner("Loading data..."):
-    df = load_data()
+with st.spinner("📊 Loading data..."):
+    df = load_data_sample()
 
 if df is None:
-    st.error("Could not load data file")
+    st.error("Failed to load data file")
     st.stop()
 
-# Get available pollutants and sites from data
-if 'Polluant' in df.columns:
-    pollutants = df['Polluant'].unique().tolist()
-else:
-    pollutants = []
+# ==================== SIDEBAR FILTERS ====================
+st.sidebar.header("🔍 Filters")
 
-if 'code site' in df.columns:
-    sites = df['code site'].unique().tolist()[:50]  # First 50
-else:
-    sites = []
+# Get unique values
+pollutants = sorted(df['Polluant'].unique().tolist()) if 'Polluant' in df.columns else []
+sites = sorted(df['code site'].unique().tolist())[:100] if 'code site' in df.columns else []
 
-# Filters
-if pollutants:
-    selected_pollutant = st.sidebar.selectbox("Pollutant", pollutants, index=0)
-else:
-    selected_pollutant = None
+if not pollutants or not sites:
+    st.error("No pollutants or sites found in data")
+    st.stop()
 
-if sites:
-    selected_site = st.sidebar.selectbox("Site", sites, index=0)
-else:
-    selected_site = None
+# Select boxes
+selected_pollutant = st.sidebar.selectbox(
+    "Select Pollutant",
+    pollutants,
+    index=0
+)
 
-# Data info
-st.sidebar.markdown("---")
-st.sidebar.info(f"""
-**Data Info:**
-- Total rows: {len(df):,}
-- Pollutants: {len(pollutants)}
-- Sites: {len(sites)}
-""")
+selected_site = st.sidebar.selectbox(
+    "Select Site",
+    sites,
+    index=0
+)
 
-# Main content
+# ==================== MAIN DASHBOARD ====================
 if selected_pollutant and selected_site:
     # Filter data
     filtered_data = df[
         (df['Polluant'] == selected_pollutant) & 
         (df['code site'] == selected_site)
-    ]
+    ].copy()
     
     if not filtered_data.empty:
-        # Show latest data
+        # Get latest data
         latest = filtered_data.iloc[-1]
+        
+        # Display metrics
+        st.header(f"📈 {selected_pollutant} at {selected_site}")
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Current Value", f"{latest['valeur']:.2f}")
         with col2:
-            if 'lag_1' in latest:
-                st.metric("1h Ago", f"{latest['lag_1']:.2f}")
+            st.metric("Latitude", f"{latest['Latitude']:.4f}")
         with col3:
-            if 'lag_24' in latest:
-                st.metric("24h Ago", f"{latest['lag_24']:.2f}")
+            st.metric("Longitude", f"{latest['Longitude']:.4f}")
         with col4:
-            st.metric("Location", f"{latest['Latitude']:.2f}, {latest['Longitude']:.2f}")
+            st.metric("Last Update", latest['date'].strftime("%H:%M"))
         
-        # Plot recent data
-        st.subheader(f"Recent Data: {selected_pollutant} at {selected_site}")
+        # ==================== TIME SERIES PLOT ====================
+        st.subheader("📊 Historical Data")
         
-        recent = filtered_data.tail(72)  # Last 72 hours
+        # Get last 3 days
+        recent_data = filtered_data.tail(72)
         
-        fig, ax = plt.subplots(figsize=(12, 4))
-        ax.plot(recent['date'], recent['valeur'], 'b-', linewidth=2, label='Actual')
+        # Create plot
+        fig = go.Figure()
         
-        if 'rolling_3' in recent.columns:
-            ax.plot(recent['date'], recent['rolling_3'], 'r--', linewidth=1, label='3h Avg')
+        fig.add_trace(go.Scatter(
+            x=recent_data['date'],
+            y=recent_data['valeur'],
+            mode='lines+markers',
+            name='Pollution Level',
+            line=dict(color='blue', width=2),
+            marker=dict(size=4)
+        ))
         
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Value')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
+        # Add rolling average
+        if 'rolling_3' in recent_data.columns:
+            fig.add_trace(go.Scatter(
+                x=recent_data['date'],
+                y=recent_data['rolling_3'],
+                mode='lines',
+                name='3h Average',
+                line=dict(color='orange', width=1, dash='dash')
+            ))
         
-        # Format x-axis
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-        plt.xticks(rotation=45)
-        plt.tight_layout()
+        fig.update_layout(
+            title=f"{selected_pollutant} Concentration - Last 3 Days",
+            xaxis_title="Time",
+            yaxis_title="Concentration",
+            hovermode="x unified",
+            height=400,
+            showlegend=True
+        )
         
-        st.pyplot(fig)
+        st.plotly_chart(fig, use_container_width=True)
         
-        # Forecast section
-        st.subheader("24-Hour Forecast")
+        # ==================== FORECAST SECTION ====================
+        st.subheader("🔮 24-Hour Forecast")
         
-        if not api_ok:
-            st.warning("API is not connected. Cannot generate forecast.")
-        else:
+        if api_connected:
             # Prepare forecast request
             forecast_payload = {
                 "datetime": latest['date'].strftime("%Y-%m-%d %H:%M:%S"),
                 "Latitude": float(latest['Latitude']),
                 "Longitude": float(latest['Longitude']),
                 "pollutant": selected_pollutant,
-                "influence": "Trafic routier",  # Default
-                "evaluation": "Réglementaire",  # Default
-                "implantation": "URBAIN",  # Default
+                "influence": "Trafic routier",
+                "evaluation": "Réglementaire",
+                "implantation": "URBAIN",
                 "site_code": selected_site,
                 "lag_1": float(latest.get('lag_1', 0)),
                 "lag_24": float(latest.get('lag_24', 0)),
                 "rolling_3": float(latest.get('rolling_3', 0)),
             }
             
-            if st.button("Generate Forecast", type="primary"):
-                with st.spinner("Calling forecast API..."):
+            # Generate forecast button
+            if st.button("🚀 Generate Forecast", type="primary", use_container_width=True):
+                with st.spinner("Generating 24-hour forecast..."):
                     try:
+                        # Call API
                         response = requests.post(
-                            f"{API_BASE}/forecast/24h",
+                            f"{API_URL}/forecast/24h",
                             json=forecast_payload,
-                            timeout=10
+                            timeout=20
                         )
                         
                         if response.status_code == 200:
                             forecast_data = response.json()
-                            st.session_state.forecast_data = forecast_data
-                            st.session_state.last_pollutant = selected_pollutant
-                            st.session_state.last_site = selected_site
+                            
+                            # Convert to DataFrame
+                            forecast_df = pd.DataFrame(forecast_data)
+                            forecast_df['forecast_time'] = pd.to_datetime(forecast_df['forecast_time'])
+                            
+                            # Display success
+                            st.success(f"✅ Forecast generated! ({len(forecast_df)} hours)")
+                            
+                            # ==================== FORECAST PLOT ====================
+                            # Combine historical and forecast data
+                            historical_last_24h = filtered_data.tail(24)
+                            
+                            fig2 = go.Figure()
+                            
+                            # Historical data
+                            fig2.add_trace(go.Scatter(
+                                x=historical_last_24h['date'],
+                                y=historical_last_24h['valeur'],
+                                mode='lines+markers',
+                                name='Historical (24h)',
+                                line=dict(color='blue', width=2),
+                                marker=dict(size=4)
+                            ))
+                            
+                            # Forecast data
+                            fig2.add_trace(go.Scatter(
+                                x=forecast_df['forecast_time'],
+                                y=forecast_df['predicted_valeur'],
+                                mode='lines+markers',
+                                name='Forecast',
+                                line=dict(color='red', width=2),
+                                marker=dict(size=6, symbol='circle')
+                            ))
+                            
+                            fig2.update_layout(
+                                title="24-Hour Forecast",
+                                xaxis_title="Time",
+                                yaxis_title="Predicted Value",
+                                hovermode="x unified",
+                                height=400,
+                                showlegend=True
+                            )
+                            
+                            st.plotly_chart(fig2, use_container_width=True)
+                            
+                            # ==================== FORECAST STATISTICS ====================
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Average", f"{forecast_df['predicted_valeur'].mean():.2f}")
+                            with col2:
+                                st.metric("Maximum", f"{forecast_df['predicted_valeur'].max():.2f}")
+                            with col3:
+                                st.metric("Minimum", f"{forecast_df['predicted_valeur'].min():.2f}")
+                            with col4:
+                                st.metric("Change", 
+                                         f"{(forecast_df['predicted_valeur'].iloc[-1] - latest['valeur']):.2f}",
+                                         delta=f"{(forecast_df['predicted_valeur'].iloc[-1] - latest['valeur']):.2f}")
+                            
+                            # ==================== FORECAST TABLE ====================
+                            with st.expander("📋 View Forecast Details"):
+                                display_df = forecast_df.copy()
+                                display_df['forecast_time'] = display_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                                st.dataframe(display_df, use_container_width=True)
+                                
+                                # Download button
+                                csv = forecast_df.to_csv(index=False)
+                                st.download_button(
+                                    label="📥 Download Forecast as CSV",
+                                    data=csv,
+                                    file_name=f"forecast_{selected_pollutant}_{selected_site}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                                    mime="text/csv"
+                                )
+                        
                         else:
-                            st.error(f"API Error: {response.status_code}")
-                            st.code(response.text[:200])
+                            st.error(f"❌ API Error: {response.status_code}")
+                            st.code(response.text[:500])
+                            
+                    except requests.exceptions.Timeout:
+                        st.error("⏱️ Request timed out. Try again.")
                     except Exception as e:
-                        st.error(f"Request failed: {e}")
+                        st.error(f"❌ Error: {str(e)}")
+        else:
+            st.warning("⚠️ API is not connected. Connect to FastAPI to generate forecasts.")
             
-            # Show previous forecast if available
-            if st.session_state.forecast_data and \
-               st.session_state.last_pollutant == selected_pollutant and \
-               st.session_state.last_site == selected_site:
-                
-                forecast_df = pd.DataFrame(st.session_state.forecast_data)
-                forecast_df['forecast_time'] = pd.to_datetime(forecast_df['forecast_time'])
-                
-                # Plot forecast
-                fig2, ax2 = plt.subplots(figsize=(12, 4))
-                
-                # Plot actual data
-                ax2.plot(recent['date'], recent['valeur'], 'b-', linewidth=1, label='Actual', alpha=0.7)
-                
-                # Plot forecast
-                ax2.plot(forecast_df['forecast_time'], forecast_df['predicted_valeur'], 
-                        'r-', linewidth=2, marker='o', markersize=4, label='Forecast')
-                
-                # Connect last actual to first forecast
-                last_actual_time = recent['date'].iloc[-1]
-                first_forecast_time = forecast_df['forecast_time'].iloc[0]
-                ax2.plot([last_actual_time, first_forecast_time],
-                        [latest['valeur'], forecast_df['predicted_valeur'].iloc[0]],
-                        'r--', alpha=0.5)
-                
-                ax2.set_xlabel('Time')
-                ax2.set_ylabel('Value')
-                ax2.set_title(f'24-Hour Forecast for {selected_pollutant}')
-                ax2.legend()
-                ax2.grid(True, alpha=0.3)
-                
-                # Format x-axis
-                ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
-                ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-                plt.xticks(rotation=45)
-                plt.tight_layout()
-                
-                st.pyplot(fig2)
-                
-                # Show forecast table
-                with st.expander("Show Forecast Data"):
-                    display_df = forecast_df.copy()
-                    display_df['forecast_time'] = display_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                    st.dataframe(display_df)
+        # ==================== DATA TABLE ====================
+        with st.expander("📄 View Raw Data"):
+            st.dataframe(
+                filtered_data[['date', 'valeur', 'Latitude', 'Longitude']].tail(20),
+                use_container_width=True
+            )
     else:
         st.warning(f"No data found for {selected_pollutant} at {selected_site}")
 else:
     st.info("👈 Please select a pollutant and site from the sidebar")
 
-# API Test section
-with st.expander("Test API Connection"):
-    if st.button("Test API Now"):
-        with st.spinner("Testing..."):
-            api_ok = test_api()
-            if api_ok:
-                st.success("✅ API is responding")
-                
-                # Try to get metadata
-                meta = get_metadata()
-                if meta:
-                    st.success("✅ Metadata loaded successfully")
-                    st.json(meta)
-                else:
-                    st.error("❌ Could not load metadata")
+# ==================== DEBUG SECTION ====================
+with st.sidebar.expander("🛠️ Debug Tools"):
+    if st.button("Test API Connection"):
+        if test_api():
+            st.success("✅ API is responding")
+        else:
+            st.error("❌ API is not responding")
+    
+    if st.button("Load Metadata"):
+        try:
+            response = requests.get(f"{API_URL}/meta", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                st.success("✅ Metadata loaded")
+                st.write(f"Pollutants: {len(data.get('pollutants', []))}")
+                st.write(f"Sites: {len(data.get('sites_sample', []))}")
             else:
-                st.error("❌ API is not responding")
+                st.error(f"Failed: {response.status_code}")
+        except Exception as e:
+            st.error(f"Error: {e}")
+    
+    st.write(f"Data: {len(df)} rows")
+    st.write(f"Pollutants: {len(pollutants)}")
+    st.write(f"Sites: {len(sites)}")
 
-# Footer
+# ==================== FOOTER ====================
 st.markdown("---")
-st.caption("Dashboard | FastAPI Backend | Streamlit Frontend")
+st.caption("Air Quality Forecast Dashboard | PACA Region | Made with ❤️ using Streamlit & FastAPI")
