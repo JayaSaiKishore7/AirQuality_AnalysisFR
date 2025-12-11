@@ -224,6 +224,20 @@ uvicorn Api.main:app --host 127.0.0.1 --port 8000
 streamlit run app.py
 ```
 ## 🖼️ Screenshots
+
+📸 Dashboard Preview
+
+![History Plot](images/Screenshot%202025-12-11%20211855.png)
+
+### Historical Data View
+![History Plot](images/Screenshot%202025-12-11%20212147.png)
+
+### 24hr Forecast Dashboard
+![Forecast Plot](images/Screenshot%202025-12-11%20212028.png)
+
+![Forecast Plot](images/Screenshot%202025-12-11%20222832.png)
+
+
 ## 📄 License
 ```
 This project is released under the MIT License.
