@@ -1,8 +1,6 @@
 # test_api.py
-import requests
-import json
+import requests, json, os
 from datetime import datetime
-import os
 import pandas as pd
 
 API = "http://127.0.0.1:8000"
@@ -10,14 +8,14 @@ API = "http://127.0.0.1:8000"
 def test_root():
     try:
         r = requests.get(f"{API}/", timeout=3)
-        print("/ →", r.status_code, r.text)
+        print("/ ->", r.status_code, r.text)
     except Exception as e:
         print("Root failed:", e)
 
 def test_meta():
     try:
         r = requests.get(f"{API}/meta", timeout=5)
-        print("/meta →", r.status_code)
+        print("/meta ->", r.status_code)
         if r.ok:
             meta = r.json()
             print("Meta keys:", list(meta.keys()))
@@ -25,12 +23,10 @@ def test_meta():
     except Exception as e:
         print("/meta failed:", e)
 
-def test_forecast_with_sample():
-    # try to build a payload from processed CSV if available
+def test_forecast():
     processed_path = os.path.join("data", "processed", "df_raw_cleaned.csv")
     if os.path.exists(processed_path):
         df = pd.read_csv(processed_path, parse_dates=["date"])
-        # pick a row with non-null lag features
         row = df.dropna(subset=["lag_1", "lag_24", "rolling_3"]).iloc[-1]
         payload = {
             "datetime": row["date"].strftime("%Y-%m-%d %H:%M:%S"),
@@ -46,35 +42,34 @@ def test_forecast_with_sample():
             "rolling_3": float(row["rolling_3"]),
         }
     else:
-        # fallback synthetic payload (likely to be encoded via fallback logic)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         payload = {
             "datetime": now,
-            "Latitude": 43.295,
-            "Longitude": 5.375,
+            "Latitude": 43.3,
+            "Longitude": 5.37,
             "pollutant": "NO2",
             "influence": "Trafic routier",
             "evaluation": "Réglementaire",
             "implantation": "URBAIN",
-            "site_code": "01001A",  # change to a valid code if needed
-            "lag_1": 15.0,
-            "lag_24": 14.0,
-            "rolling_3": 14.5,
+            "site_code": "01001A",
+            "lag_1": 10.0,
+            "lag_24": 9.0,
+            "rolling_3": 9.5,
         }
-
-    print("Forecast payload:", json.dumps(payload, indent=2, ensure_ascii=False))
+    print("Payload:", json.dumps(payload, ensure_ascii=False, indent=2))
     try:
         r = requests.post(f"{API}/forecast/24h", json=payload, timeout=20)
         print("forecast ->", r.status_code)
         if r.ok:
             data = r.json()
-            print("Received forecast length:", len(data))
+            print("Received forecast items:", len(data))
             print("First item:", data[0])
+        else:
+            print("Forecast error:", r.text[:400])
     except Exception as e:
-        print("Forecast call failed:", e)
+        print("Forecast request failed:", e)
 
 if __name__ == "__main__":
-    print("Testing API connectivity...")
     test_root()
     test_meta()
-    test_forecast_with_sample()
+    test_forecast()
