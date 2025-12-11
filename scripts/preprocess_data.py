@@ -6,7 +6,7 @@ import joblib
 
 def preprocess_raw_data():
 
-    # ---- 1. Define paths ----
+    # Define paths 
     raw_path = os.path.join("data", "raw", "Airquality_PACA_2025_Combined.csv")
     processed_dir = os.path.join("data", "processed")
     encoder_dir = os.path.join("models", "encoders")
@@ -19,7 +19,7 @@ def preprocess_raw_data():
     print(f"\n Loading raw dataset from: {raw_path}")
     df = pd.read_csv(raw_path)
 
-    # ---- 2. Keep relevant columns (must exist in raw file) ----
+    #  Keep relevant columns (must exist in raw file) 
     selected_cols = [
         "Date de début",
         "valeur",
@@ -34,10 +34,10 @@ def preprocess_raw_data():
 
     df = df[selected_cols].copy()
 
-    # ---- 3. Drop unusable rows ----
+    #  Drop unusable rows 
     df = df.dropna(subset=["Date de début", "valeur", "Latitude", "Longitude"])
 
-    # ---- 4. Convert date & extract features ----
+    #  Convert date & extract features 
     df["date"] = pd.to_datetime(df["Date de début"], errors="coerce")
     df = df.dropna(subset=["date"]).reset_index(drop=True)
 
@@ -50,7 +50,7 @@ def preprocess_raw_data():
     df["weekday"] = df["date"].dt.weekday
     df["weekend"] = df["weekday"].isin([5, 6]).astype(int)
 
-    # ---- 5. Label encoding for categorical features ----
+    # Label encoding for categorical features 
     categorical_cols = [
         "Polluant",
         "type d'influence",
@@ -92,7 +92,7 @@ def preprocess_raw_data():
         }
     )
 
-    # ---- 6. Create lag & rolling features (per site+pollutant grouped TS) ----
+    #  Create lag & rolling features (per site+pollutant grouped TS) 
     df = df.sort_values(["pollutant_encoded", "site_encoded", "date"])
 
     df["lag_1"] = df.groupby(["pollutant_encoded", "site_encoded"])["valeur"].shift(1)
@@ -105,10 +105,10 @@ def preprocess_raw_data():
         .reset_index(level=[0, 1], drop=True)
     )
 
-    # ---- 7. Remove missing lag rows ----
+    # Remove missing lag rows 
     df = df.dropna(subset=["lag_1", "lag_24", "rolling_3"]).reset_index(drop=True)
 
-    # ---- 8. Final modeling features ----
+    #  Final modeling features 
     final_cols = [
         "valeur",
         "Latitude",
@@ -125,6 +125,11 @@ def preprocess_raw_data():
         "evaluation_encoded",
         "implantation_encoded",
         "site_encoded",
+        "Polluant",
+        "type d'influence",
+        "type d'évaluation",
+        "type d'implantation",
+        "code site",
         "lag_1",
         "lag_24",
         "rolling_3",
@@ -132,7 +137,7 @@ def preprocess_raw_data():
 
     df_final = df[final_cols].copy()
 
-    # ---- 9. Save dataset ----
+    # Save dataset 
     df_final.to_csv(processed_path, index=False)
     print(f"\n Saved cleaned dataset → {processed_path}")
     print(" Final shape:", df_final.shape)
