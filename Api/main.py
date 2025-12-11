@@ -1,3 +1,4 @@
+# Api/main.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
@@ -6,11 +7,12 @@ import joblib
 import pandas as pd
 import difflib
 from typing import Optional, Dict, Any
+import unicodedata
 
 # -------------------------
 # App setup
 # -------------------------
-app = FastAPI(title="Air Quality Forecast API (with fuzzy encoding & /meta)")
+app = FastAPI(title="Air Quality Forecast API (auto-find encoders)")
 
 MODEL_PATH = os.path.join("models", "best_model.pkl")
 ENCODER_DIR = os.path.join("models", "encoders")
@@ -18,8 +20,8 @@ ENCODER_DIR = os.path.join("models", "encoders")
 if not os.path.exists(MODEL_PATH):
     raise RuntimeError(f"Model file not found at {MODEL_PATH}")
 
-# load model
-model = joblib.load(MODEL_PATH)
+if not os.path.isdir(ENCODER_DIR):
+    raise RuntimeError(f"Encoders directory not found: {ENCODER_DIR}")
 
 # Feature order must match training
 FEATURE_COLS = [
@@ -35,19 +37,65 @@ FEATURE_COLS = [
 ]
 
 # -------------------------
-# Load encoders safely
+# Utility: normalize strings (remove accents, lowercase)
 # -------------------------
-def safe_load_encoder(fname: str):
-    path = os.path.join(ENCODER_DIR, fname)
-    if not os.path.exists(path):
-        raise RuntimeError(f"Missing encoder file: {path}. Run preprocess_data.py to (re)generate encoders.")
-    return joblib.load(path)
+def norm(s: str) -> str:
+    if s is None:
+        return ""
+    s = str(s)
+    s = unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("ASCII")
+    return s.lower()
 
-pollutant_le = safe_load_encoder("pollutant_encoder.pkl")
-influence_le = safe_load_encoder("influence_encoder.pkl")
-evaluation_le = safe_load_encoder("evaluation_encoder.pkl")
-implantation_le = safe_load_encoder("implantation_encoder.pkl")
-site_le = safe_load_encoder("site_encoder.pkl")
+# -------------------------
+# Find encoder file by keywords (robust to accents / case)
+# -------------------------
+def find_encoder_filename(keywords):
+    """
+    keywords: iterable of strings to search for in filename (normalized)
+    Returns: full path to the first matching file, or None
+    """
+    files = os.listdir(ENCODER_DIR)
+    norm_files = {f: norm(f) for f in files}
+    for f, nf in norm_files.items():
+        for kw in keywords:
+            if norm(kw) in nf:
+                return os.path.join(ENCODER_DIR, f)
+    # fallback: try fuzzy substring match on files
+    for f, nf in norm_files.items():
+        for kw in keywords:
+            # if any close match
+            if difflib.get_close_matches(norm(kw), [nf], n=1, cutoff=0.6):
+                return os.path.join(ENCODER_DIR, f)
+    return None
+
+def safe_load_encoder_by_keywords(keywords, target_name):
+    path = find_encoder_filename(keywords)
+    if path is None:
+        raise RuntimeError(f"Could not find encoder matching keywords {keywords} in {ENCODER_DIR} for {target_name}. Files: {os.listdir(ENCODER_DIR)}")
+    try:
+        le = joblib.load(path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load encoder from {path}: {e}")
+    return le, path
+
+# -------------------------
+# Load model & encoders (auto-discover)
+# -------------------------
+model = joblib.load(MODEL_PATH)
+
+pollutant_le, pollutant_path = safe_load_encoder_by_keywords(["poll", "pollutant", "polluant"], "pollutant_encoder")
+influence_le, influence_path = safe_load_encoder_by_keywords(["influence"], "influence_encoder")
+evaluation_le, evaluation_path = safe_load_encoder_by_keywords(["evaluation", "évaluation", "type d'evaluation", "type d'évaluation"], "evaluation_encoder")
+implantation_le, implantation_path = safe_load_encoder_by_keywords(["implantation"], "implantation_encoder")
+site_le, site_path = safe_load_encoder_by_keywords(["site", "code site", "code_site"], "site_encoder")
+
+# Log which files were used (stdout)
+print("Loaded encoder files:")
+print(" pollutant:", pollutant_path)
+print(" influence:", influence_path)
+print(" evaluation:", evaluation_path)
+print(" implantation:", implantation_path)
+print(" site:", site_path)
 
 # -------------------------
 # Helper: encoding with fallback
@@ -80,28 +128,27 @@ def encode_with_fallback(le, raw_value: str, mapping: Optional[Dict[str, str]] =
             except Exception:
                 pass
 
-    # 3) fuzzy match
+    # 3) case-insensitive exact match against encoder classes
     choices = list(le.classes_)
-    # try case-insensitive matching by comparing lowered forms
     lowered_choices = {c.lower(): c for c in choices}
     if raw_value_str.lower() in lowered_choices:
         choice = lowered_choices[raw_value_str.lower()]
         return int(le.transform([choice])[0])
 
+    # 4) fuzzy match
     close = difflib.get_close_matches(raw_value_str, choices, n=1, cutoff=0.6)
     if close:
         return int(le.transform([close[0]])[0])
 
     # nothing worked -> raise clear error listing a few examples
     examples = choices[:10]
-    raise ValueError(f"Unknown label '{raw_value_str}'. Allowed examples: {examples}")
+    raise ValueError(f"Unknown label '{raw_value_str}'. Allowed examples (first 10): {examples}")
 
-# Optional simple mappings for common English/short inputs -> dataset labels
+# Optional mappings (expand if you like)
 INFLUENCE_MAP = {
     "traffic": "Trafic routier",
     "trafic": "Trafic routier",
     "industrie": "Industriel",
-    "indus": "Industriel",
 }
 
 POLLUTANT_MAP = {
@@ -113,8 +160,8 @@ POLLUTANT_MAP = {
 }
 
 EVALUATION_MAP = {
-    "reg": "Réglementaire",
     "reglementaire": "Réglementaire",
+    "reg": "Réglementaire",
 }
 
 IMPLANTATION_MAP = {
@@ -126,7 +173,6 @@ IMPLANTATION_MAP = {
 # Pydantic models
 # -------------------------
 class PredictionInput(BaseModel):
-    # Low-level numeric (already encoded) input
     Latitude: float
     Longitude: float
     hour: int
@@ -144,10 +190,8 @@ class PredictionInput(BaseModel):
     lag_24: float
     rolling_3: float
 
-
 class RawPredictionInput(BaseModel):
-    # High-level human friendly input
-    datetime: str           # "YYYY-MM-DD HH:MM:SS" (ISO is also accepted)
+    datetime: str
     Latitude: float
     Longitude: float
     pollutant: str
@@ -159,54 +203,36 @@ class RawPredictionInput(BaseModel):
     lag_24: float
     rolling_3: float
 
-
 class PredictionOutput(BaseModel):
     predicted_valeur: float
-
 
 # -------------------------
 # Routes
 # -------------------------
 @app.get("/")
 def root():
-    return {"message": "Air Quality Forecast API (healthy)"}
-
+    return {"message": "Air Quality Forecast API (healthy - encoders auto-discovered)"}
 
 @app.get("/meta")
 def meta() -> Dict[str, Any]:
-    """
-    Return allowed categorical values (useful for populating Streamlit dropdowns).
-    """
     return {
         "pollutants": list(pollutant_le.classes_),
         "influences": list(influence_le.classes_),
         "evaluations": list(evaluation_le.classes_),
         "implantations": list(implantation_le.classes_),
-        "sites_sample": list(site_le.classes_)[:200],  # sample first 200 site codes
+        "sites_sample": list(site_le.classes_)[:200],
     }
-
 
 @app.post("/predict", response_model=PredictionOutput)
 def predict(input_data: PredictionInput):
-    """
-    Low-level numeric prediction (input must be already processed and encoded).
-    """
     row = pd.DataFrame([[getattr(input_data, col) for col in FEATURE_COLS]], columns=FEATURE_COLS)
     y_pred = model.predict(row)[0]
     return PredictionOutput(predicted_valeur=float(y_pred))
 
-
 @app.post("/predict_raw", response_model=PredictionOutput)
 def predict_raw(input_data: RawPredictionInput):
-    """
-    High-level prediction:
-    - parse datetime -> hour/day/month/year/weekday/weekend
-    - encode categorical features using encoders (with fuzzy fallback)
-    - build feature vector and predict
-    """
     # parse datetime
     try:
-        # accept ISO style or "YYYY-MM-DD HH:MM:SS"
         dt = datetime.fromisoformat(input_data.datetime)
     except Exception:
         try:
@@ -221,7 +247,7 @@ def predict_raw(input_data: RawPredictionInput):
     weekday = dt.weekday()
     weekend = 1 if weekday in (5, 6) else 0
 
-    # encode categorical values with fallback and mappings
+    # encode categories
     try:
         pollutant_encoded = encode_with_fallback(pollutant_le, input_data.pollutant, mapping=POLLUTANT_MAP)
         influence_encoded = encode_with_fallback(influence_le, input_data.influence, mapping=INFLUENCE_MAP)
@@ -231,7 +257,6 @@ def predict_raw(input_data: RawPredictionInput):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # build feature dict
     feature_dict = {
         "Latitude": input_data.Latitude,
         "Longitude": input_data.Longitude,
