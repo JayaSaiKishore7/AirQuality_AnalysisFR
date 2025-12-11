@@ -1,325 +1,262 @@
 import streamlit as st
 import pandas as pd
+import requests
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import joblib
+from datetime import datetime
 
-st.set_page_config(page_title="Air Quality Forecast Dashboard", layout="wide")
+# Configuration
+API_BASE = "http://127.0.0.1:8000"
+DATA_PATH = "data/processed/df_raw_cleaned.csv"
 
-st.title("🌍 Air Quality Analysis & 24-Hour Forecast")
+st.set_page_config(page_title="Air Quality Dashboard", layout="wide")
 
-# -----------------------------
-# 1. Load data & model
-# -----------------------------
+# Initialize session state
+if 'forecast_data' not in st.session_state:
+    st.session_state.forecast_data = None
+if 'last_pollutant' not in st.session_state:
+    st.session_state.last_pollutant = None
+if 'last_site' not in st.session_state:
+    st.session_state.last_site = None
 
-
-@st.cache_data
-def load_data():
-    # Adjust path if needed
-    df = pd.read_csv("data/processed/df_sample_processed.csv", parse_dates=["date"])
-    df = df.sort_values("date")
-    return df
-
-
-@st.cache_resource
-def load_model():
-    model = joblib.load("models/best_model.pkl")
-    return model
-
-
-@st.cache_resource
-def load_mappings():
-    """Load optional mappings for pollutant/site labels.
-    If file not found, we fall back to generic names like 'Pollutant 2'."""
+# Test API connection
+@st.cache_data(ttl=300)
+def test_api():
     try:
-        mapping = joblib.load("models/mappings.pkl")
-    except Exception:
-        mapping = {}
-    pollutant_map = mapping.get("pollutant_map", {})
-    site_map = mapping.get("site_map", {})
-    return pollutant_map, site_map
+        response = requests.get(f"{API_BASE}/", timeout=3)
+        return response.status_code == 200
+    except:
+        return False
 
+# Load data
+@st.cache_data(ttl=600)
+def load_data():
+    try:
+        df = pd.read_csv(DATA_PATH, parse_dates=['date'], nrows=10000)  # Load only first 10k rows for speed
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        return None
 
-df = load_data()
-model = load_model()
-pollutant_map, site_map = load_mappings()
+# Get metadata from API
+def get_metadata():
+    try:
+        response = requests.get(f"{API_BASE}/meta", timeout=5)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        return None
+    return None
 
-# -----------------------------
-# Helpers
-# -----------------------------
+# Main app
+st.title("🌤️ Air Quality Forecast Dashboard")
 
+# Sidebar
+st.sidebar.header("Settings")
 
-def classify_level(value: float):
-    """Simple AQI-like category (generic, not official)."""
-    if value <= 25:
-        return "Low", "🟢"
-    elif value <= 50:
-        return "Moderate", "🟡"
-    elif value <= 75:
-        return "High", "🟠"
-    else:
-        return "Very High", "🔴"
+# API Status
+api_ok = test_api()
+if api_ok:
+    st.sidebar.success("✅ API Connected")
+else:
+    st.sidebar.error("❌ API Not Connected")
+    st.sidebar.info("Make sure FastAPI is running on port 8000")
 
+# Load data
+with st.spinner("Loading data..."):
+    df = load_data()
 
-feature_cols = [
-    "Latitude",
-    "Longitude",
-    "hour",
-    "day",
-    "month",
-    "year",
-    "weekday",
-    "is_weekend",
-    "Polluant_encoded",
-    "influence_encoded",
-    "evaluation_encoded",
-    "implantation_encoded",
-    "site_encoded",
-    "lag_1",
-    "lag_24",
-    "rolling_3",
-]
-
-
-def forecast_next_24(df_sub: pd.DataFrame, model):
-    """Multi-step 24h forecast starting from the last row of df_sub."""
-    df_sub = df_sub.sort_values("date")
-    last_row = df_sub.iloc[-1:].copy()
-
-    forecasts = []
-    times = []
-
-    for _ in range(24):
-        X_last = last_row[feature_cols]
-        next_val = model.predict(X_last)[0]
-
-        next_time = last_row["date"].iloc[0] + pd.Timedelta(hours=1)
-        times.append(next_time)
-        forecasts.append(next_val)
-
-        new_row = last_row.copy()
-        new_row["date"] = next_time
-
-        # update time features
-        new_row["hour"] = next_time.hour
-        new_row["day"] = next_time.day
-        new_row["month"] = next_time.month
-        new_row["year"] = next_time.year
-        new_row["weekday"] = next_time.weekday()
-        new_row["is_weekend"] = 1 if new_row["weekday"].iloc[0] >= 5 else 0
-
-        # update lag/rolling features
-        prev_val = last_row["valeur"].iloc[0]
-        new_row["lag_1"] = prev_val
-        new_row["rolling_3"] = (last_row["rolling_3"] * 2 + next_val) / 3
-
-        # we approximate lag_24 by keeping previous lag_24 (simple approach)
-        new_row["valeur"] = next_val
-
-        last_row = new_row.copy()
-
-    return pd.DataFrame({"forecast_time": times, "forecast_value": forecasts})
-
-
-# -----------------------------
-# 2. Sidebar filters (with nicer labels)
-# -----------------------------
-
-st.sidebar.header("Filters")
-
-# Pollutant selection
-pollutant_codes = sorted(df["Polluant_encoded"].unique())
-pollutant_labels = [pollutant_map.get(c, f"Pollutant {c}") for c in pollutant_codes]
-poll_label_to_code = dict(zip(pollutant_labels, pollutant_codes))
-
-selected_pollutant_label = st.sidebar.selectbox("Pollutant", pollutant_labels)
-selected_pollutant = poll_label_to_code[selected_pollutant_label]
-
-# Site selection
-site_codes = sorted(df["site_encoded"].unique())
-site_labels = [site_map.get(s, f"Site {s}") for s in site_codes]
-site_label_to_code = dict(zip(site_labels, site_codes))
-
-selected_site_label = st.sidebar.selectbox("Site", site_labels)
-selected_site = site_label_to_code[selected_site_label]
-
-df_sel = df[
-    (df["Polluant_encoded"] == selected_pollutant)
-    & (df["site_encoded"] == selected_site)
-].copy()
-
-if df_sel.empty:
-    st.warning("No data for this pollutant / site combination.")
+if df is None:
+    st.error("Could not load data file")
     st.stop()
 
-df_sel = df_sel.sort_values("date")
-recent = df_sel.tail(24 * 7)  # last 7 days
+# Get available pollutants and sites from data
+if 'Polluant' in df.columns:
+    pollutants = df['Polluant'].unique().tolist()
+else:
+    pollutants = []
 
+if 'code site' in df.columns:
+    sites = df['code site'].unique().tolist()[:50]  # First 50
+else:
+    sites = []
 
-# -----------------------------
-# 3. Tabs layout
-# -----------------------------
+# Filters
+if pollutants:
+    selected_pollutant = st.sidebar.selectbox("Pollutant", pollutants, index=0)
+else:
+    selected_pollutant = None
 
-tab_overview, tab_forecast, tab_map, tab_trends = st.tabs(
-    ["📊 Overview", "🔮 Forecast", "🗺️ Map", "📈 Trends"]
-)
+if sites:
+    selected_site = st.sidebar.selectbox("Site", sites, index=0)
+else:
+    selected_site = None
 
-# -----------------------------
-# OVERVIEW TAB
-# -----------------------------
-with tab_overview:
-    st.subheader("Overview – Current Status")
+# Data info
+st.sidebar.markdown("---")
+st.sidebar.info(f"""
+**Data Info:**
+- Total rows: {len(df):,}
+- Pollutants: {len(pollutants)}
+- Sites: {len(sites)}
+""")
 
-    last_actual = df_sel["valeur"].iloc[-1]
-    last_time = df_sel["date"].iloc[-1]
-    avg_7d = recent["valeur"].mean()
-
-    level_now, icon_now = classify_level(last_actual)
-    level_avg, icon_avg = classify_level(avg_7d)
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric(
-        "Latest Measurement",
-        f"{last_actual:.2f}",
-        help=f"At {last_time}",
-    )
-    col2.metric(
-        "Current Level",
-        f"{icon_now} {level_now}",
-        help="Based on latest measurement",
-    )
-    col3.metric(
-        "7-Day Avg Level",
-        f"{icon_avg} {level_avg}",
-        help=f"Mean of last 7 days: {avg_7d:.2f}",
-    )
-
-    st.markdown(
-        f"**Pollutant:** {selected_pollutant_label}  |  **Site:** {selected_site_label}"
-    )
-
-    st.markdown("### Historical Data (last 7 days)")
-    fig_hist, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(recent["date"], recent["valeur"], linewidth=2)
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Pollution level")
-    ax.set_title("Historical Pollution (last 7 days)")
-    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-    fig_hist.autofmt_xdate(rotation=45)
-    fig_hist.tight_layout()
-    st.pyplot(fig_hist)
-
-
-# -----------------------------
-# FORECAST TAB
-# -----------------------------
-with tab_forecast:
-    st.subheader("Next 24-Hour Forecast")
-
-    if len(df_sel) < 30:
-        st.warning("Not enough data for this pollutant/site to generate a forecast.")
+# Main content
+if selected_pollutant and selected_site:
+    # Filter data
+    filtered_data = df[
+        (df['Polluant'] == selected_pollutant) & 
+        (df['code site'] == selected_site)
+    ]
+    
+    if not filtered_data.empty:
+        # Show latest data
+        latest = filtered_data.iloc[-1]
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Current Value", f"{latest['valeur']:.2f}")
+        with col2:
+            if 'lag_1' in latest:
+                st.metric("1h Ago", f"{latest['lag_1']:.2f}")
+        with col3:
+            if 'lag_24' in latest:
+                st.metric("24h Ago", f"{latest['lag_24']:.2f}")
+        with col4:
+            st.metric("Location", f"{latest['Latitude']:.2f}, {latest['Longitude']:.2f}")
+        
+        # Plot recent data
+        st.subheader(f"Recent Data: {selected_pollutant} at {selected_site}")
+        
+        recent = filtered_data.tail(72)  # Last 72 hours
+        
+        fig, ax = plt.subplots(figsize=(12, 4))
+        ax.plot(recent['date'], recent['valeur'], 'b-', linewidth=2, label='Actual')
+        
+        if 'rolling_3' in recent.columns:
+            ax.plot(recent['date'], recent['rolling_3'], 'r--', linewidth=1, label='3h Avg')
+        
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Value')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Format x-axis
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        st.pyplot(fig)
+        
+        # Forecast section
+        st.subheader("24-Hour Forecast")
+        
+        if not api_ok:
+            st.warning("API is not connected. Cannot generate forecast.")
+        else:
+            # Prepare forecast request
+            forecast_payload = {
+                "datetime": latest['date'].strftime("%Y-%m-%d %H:%M:%S"),
+                "Latitude": float(latest['Latitude']),
+                "Longitude": float(latest['Longitude']),
+                "pollutant": selected_pollutant,
+                "influence": "Trafic routier",  # Default
+                "evaluation": "Réglementaire",  # Default
+                "implantation": "URBAIN",  # Default
+                "site_code": selected_site,
+                "lag_1": float(latest.get('lag_1', 0)),
+                "lag_24": float(latest.get('lag_24', 0)),
+                "rolling_3": float(latest.get('rolling_3', 0)),
+            }
+            
+            if st.button("Generate Forecast", type="primary"):
+                with st.spinner("Calling forecast API..."):
+                    try:
+                        response = requests.post(
+                            f"{API_BASE}/forecast/24h",
+                            json=forecast_payload,
+                            timeout=10
+                        )
+                        
+                        if response.status_code == 200:
+                            forecast_data = response.json()
+                            st.session_state.forecast_data = forecast_data
+                            st.session_state.last_pollutant = selected_pollutant
+                            st.session_state.last_site = selected_site
+                        else:
+                            st.error(f"API Error: {response.status_code}")
+                            st.code(response.text[:200])
+                    except Exception as e:
+                        st.error(f"Request failed: {e}")
+            
+            # Show previous forecast if available
+            if st.session_state.forecast_data and \
+               st.session_state.last_pollutant == selected_pollutant and \
+               st.session_state.last_site == selected_site:
+                
+                forecast_df = pd.DataFrame(st.session_state.forecast_data)
+                forecast_df['forecast_time'] = pd.to_datetime(forecast_df['forecast_time'])
+                
+                # Plot forecast
+                fig2, ax2 = plt.subplots(figsize=(12, 4))
+                
+                # Plot actual data
+                ax2.plot(recent['date'], recent['valeur'], 'b-', linewidth=1, label='Actual', alpha=0.7)
+                
+                # Plot forecast
+                ax2.plot(forecast_df['forecast_time'], forecast_df['predicted_valeur'], 
+                        'r-', linewidth=2, marker='o', markersize=4, label='Forecast')
+                
+                # Connect last actual to first forecast
+                last_actual_time = recent['date'].iloc[-1]
+                first_forecast_time = forecast_df['forecast_time'].iloc[0]
+                ax2.plot([last_actual_time, first_forecast_time],
+                        [latest['valeur'], forecast_df['predicted_valeur'].iloc[0]],
+                        'r--', alpha=0.5)
+                
+                ax2.set_xlabel('Time')
+                ax2.set_ylabel('Value')
+                ax2.set_title(f'24-Hour Forecast for {selected_pollutant}')
+                ax2.legend()
+                ax2.grid(True, alpha=0.3)
+                
+                # Format x-axis
+                ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
+                ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+                
+                st.pyplot(fig2)
+                
+                # Show forecast table
+                with st.expander("Show Forecast Data"):
+                    display_df = forecast_df.copy()
+                    display_df['forecast_time'] = display_df['forecast_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    st.dataframe(display_df)
     else:
-        forecast_df = forecast_next_24(df_sel, model)
+        st.warning(f"No data found for {selected_pollutant} at {selected_site}")
+else:
+    st.info("👈 Please select a pollutant and site from the sidebar")
 
-        avg_forecast = forecast_df["forecast_value"].mean()
-        level_forecast, icon_forecast = classify_level(avg_forecast)
+# API Test section
+with st.expander("Test API Connection"):
+    if st.button("Test API Now"):
+        with st.spinner("Testing..."):
+            api_ok = test_api()
+            if api_ok:
+                st.success("✅ API is responding")
+                
+                # Try to get metadata
+                meta = get_metadata()
+                if meta:
+                    st.success("✅ Metadata loaded successfully")
+                    st.json(meta)
+                else:
+                    st.error("❌ Could not load metadata")
+            else:
+                st.error("❌ API is not responding")
 
-        c1, c2 = st.columns(2)
-        c1.metric("Mean Forecast (next 24h)", f"{avg_forecast:.2f}")
-        c2.metric("Forecast Level", f"{icon_forecast} {level_forecast}")
-
-        fig_fore, ax2 = plt.subplots(figsize=(10, 4))
-        ax2.plot(recent["date"], recent["valeur"], label="Actual (last 7 days)", linewidth=2)
-        ax2.plot(
-            forecast_df["forecast_time"],
-            forecast_df["forecast_value"],
-            label="Forecast (next 24h)",
-            linestyle="--",
-            linewidth=2,
-        )
-        ax2.set_xlabel("Time")
-        ax2.set_ylabel("Pollution level")
-        ax2.set_title("Historical vs Forecast")
-        ax2.legend()
-        ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
-        ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d %H:%M"))
-        fig_fore.autofmt_xdate(rotation=45)
-        fig_fore.tight_layout()
-        st.pyplot(fig_fore)
-
-        st.markdown("### Forecast Table (Next 24 Hours)")
-        st.dataframe(forecast_df)
-
-        csv_data = forecast_df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Download forecast as CSV",
-            csv_data,
-            file_name="forecast_next_24h.csv",
-            mime="text/csv",
-        )
-
-
-# -----------------------------
-# MAP TAB
-# -----------------------------
-with tab_map:
-    st.subheader("Station Location")
-
-    map_df = df_sel[["Latitude", "Longitude"]].dropna().copy()
-    map_df = map_df.rename(columns={"Latitude": "lat", "Longitude": "lon"})
-
-    if map_df.empty:
-        st.warning("No latitude/longitude data available for this station.")
-    else:
-        # show last known position
-        st.map(map_df.tail(1))
-
-    st.caption("Map shows the location of the selected measuring station.")
-
-
-# -----------------------------
-# TRENDS TAB
-# -----------------------------
-with tab_trends:
-    st.subheader("Trends & Aggregations")
-
-    # Daily and weekly mean series
-    daily = df_sel.set_index("date")["valeur"].resample("D").mean().dropna()
-    weekly = df_sel.set_index("date")["valeur"].resample("W").mean().dropna()
-
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.markdown("**Daily Mean Pollution**")
-        fig_daily, axd = plt.subplots(figsize=(6, 3))
-        axd.plot(daily.index, daily.values, marker="o")
-        axd.set_xlabel("Date")
-        axd.set_ylabel("Mean pollution")
-        axd.set_title("Daily Mean")
-
-        axd.xaxis.set_major_locator(mdates.AutoDateLocator())
-        axd.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        fig_daily.autofmt_xdate(rotation=45)
-
-        fig_daily.tight_layout()
-        st.pyplot(fig_daily)
-
-    with col_b:
-        st.markdown("**Weekly Mean Pollution**")
-        fig_weekly, axw = plt.subplots(figsize=(6, 3))
-        axw.plot(weekly.index, weekly.values, marker="o")
-        axw.set_xlabel("Week")
-        axw.set_ylabel("Mean pollution")
-        axw.set_title("Weekly Mean")
-
-        axw.xaxis.set_major_locator(mdates.AutoDateLocator())
-        axw.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
-        fig_weekly.autofmt_xdate(rotation=45)
-
-        fig_weekly.tight_layout()
-        st.pyplot(fig_weekly)
-
-    st.markdown(
-        "You can use these trends to see if the air quality is improving or worsening over time."
-    )
+# Footer
+st.markdown("---")
+st.caption("Dashboard | FastAPI Backend | Streamlit Frontend")
