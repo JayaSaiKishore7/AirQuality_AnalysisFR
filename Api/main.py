@@ -1,4 +1,3 @@
-# Api/main.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
@@ -6,7 +5,7 @@ import os
 import joblib
 import pandas as pd
 import difflib
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import unicodedata
 
 # -------------------------
@@ -105,7 +104,8 @@ def encode_with_fallback(le, raw_value: str, mapping: Optional[Dict[str, str]] =
     Attempt to encode a user-provided raw_value using LabelEncoder 'le'.
     1) exact transform
     2) mapping lookup (mapping keys are lower-cased)
-    3) fuzzy matching against le.classes_
+    3) case-insensitive exact match against encoder classes
+    4) fuzzy match against le.classes_
     Raises ValueError with helpful message if nothing found.
     """
     if raw_value is None:
@@ -206,6 +206,101 @@ class RawPredictionInput(BaseModel):
 class PredictionOutput(BaseModel):
     predicted_valeur: float
 
+# --- NEW: Forecast Output Model ---
+class ForecastResult(BaseModel):
+    """Represents a single hour's prediction in the 24-hour forecast."""
+    forecast_time: str
+    predicted_valeur: float
+# ----------------------------------
+
+# -------------------------
+# Core Multi-Step Forecasting Logic
+# -------------------------
+def forecast_next_24_raw(start_data: RawPredictionInput, model) -> List[ForecastResult]:
+    """
+    Multi-step 24h forecast starting from the last actual data point (start_data).
+    This function handles all feature engineering iteratively.
+    
+    """
+    
+    # Pre-calculate time and encoded features from the start data
+    try:
+        current_time = datetime.fromisoformat(start_data.datetime)
+    except Exception:
+        current_time = datetime.strptime(start_data.datetime, "%Y-%m-%d %H:%M:%S")
+
+    # --- Prepare Static Features ---
+    try:
+        static_features = {
+            "Latitude": start_data.Latitude,
+            "Longitude": start_data.Longitude,
+            "pollutant_encoded": encode_with_fallback(pollutant_le, start_data.pollutant, mapping=POLLUTANT_MAP),
+            "influence_encoded": encode_with_fallback(influence_le, start_data.influence, mapping=INFLUENCE_MAP),
+            "evaluation_encoded": encode_with_fallback(evaluation_le, start_data.evaluation, mapping=EVALUATION_MAP),
+            "implantation_encoded": encode_with_fallback(implantation_le, start_data.implantation, mapping=IMPLANTATION_MAP),
+            "site_encoded": encode_with_fallback(site_le, start_data.site_code, mapping=None),
+        }
+    except ValueError as e:
+         # This should have been caught in the route, but as a safeguard:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    # --- Prepare Dynamic Features ---
+    dynamic_features = {
+        "lag_1": start_data.lag_1,
+        "lag_24": start_data.lag_24, # Propagated through the 24 steps
+        "rolling_3": start_data.rolling_3,
+    }
+    
+    forecasts: List[ForecastResult] = []
+
+    # Iterate for 24 steps (1-hour forecast each time)
+    for i in range(1, 25):
+        # Calculate the time for the *prediction* (t+i)
+        next_time = current_time + pd.Timedelta(hours=i)
+
+        # Calculate time features for the *current* forecast step (t+i)
+        time_features = {
+            "hour": next_time.hour,
+            "day": next_time.day,
+            "month": next_time.month,
+            "year": next_time.year,
+            "weekday": next_time.weekday(),
+            "weekend": 1 if next_time.weekday() in (5, 6) else 0,
+        }
+        
+        # Assemble the feature vector for the model
+        feature_vector = {**static_features, **time_features, **dynamic_features}
+        
+        # Ensure the feature order matches training
+        row = pd.DataFrame([[feature_vector[col] for col in FEATURE_COLS]], columns=FEATURE_COLS)
+        
+        # Predict the value at t+i
+        y_pred = model.predict(row)[0]
+        
+        forecasts.append(
+            ForecastResult(
+                forecast_time=next_time.isoformat(),
+                predicted_valeur=float(y_pred)
+            )
+        )
+        
+        # Update Dynamic Features for the next iteration (t+i+1)
+        
+        # New lag_1 (t+i+1's lag_1) is the prediction from the current step (t+i)
+        dynamic_features["lag_1"] = float(y_pred)
+        
+        # Update rolling_3 (approximation: average the previous two values and the new prediction)
+        # For simplicity and given the rolling_3 is already a lag-feature, we'll approximate 
+        # the next rolling mean based on the new prediction and the last rolling mean.
+        # A more complex rolling buffer tracking 3 values would be more accurate, 
+        # but this simple update is often sufficient for short-term forecasts.
+        dynamic_features["rolling_3"] = (dynamic_features["rolling_3"] * 2 + float(y_pred)) / 3
+
+        # lag_24 remains static for the first 24 hours of forecast
+
+    return forecasts
+
+
 # -------------------------
 # Routes
 # -------------------------
@@ -279,3 +374,45 @@ def predict_raw(input_data: RawPredictionInput):
     row = pd.DataFrame([[feature_dict[col] for col in FEATURE_COLS]], columns=FEATURE_COLS)
     y_pred = model.predict(row)[0]
     return PredictionOutput(predicted_valeur=float(y_pred))
+
+# --- NEW ROUTE ---
+
+@app.post(
+    "/forecast/24h",
+    response_model=List[ForecastResult],
+    summary="Get 24-Hour Multi-Step Forecast (Raw Input)"
+)
+def get_24h_forecast(start_data: RawPredictionInput):
+    """
+    Generates a 24-hour multi-step forecast starting from the provided latest data point.
+    """
+    
+    # 1. Input Validation (Checks categories and datetime before starting the loop)
+    try:
+        # Check datetime format is valid
+        try:
+            datetime.fromisoformat(start_data.datetime)
+        except Exception:
+            datetime.strptime(start_data.datetime, "%Y-%m-%d %H:%M:%S")
+
+        # Check all categories can be encoded (run the encoding logic once)
+        encode_with_fallback(pollutant_le, start_data.pollutant, mapping=POLLUTANT_MAP)
+        encode_with_fallback(influence_le, start_data.influence, mapping=INFLUENCE_MAP)
+        encode_with_fallback(evaluation_le, start_data.evaluation, mapping=EVALUATION_MAP)
+        encode_with_fallback(implantation_le, start_data.implantation, mapping=IMPLANTATION_MAP)
+        encode_with_fallback(site_le, start_data.site_code, mapping=None)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid datetime format or data type.")
+
+    # 2. Run the forecast logic
+    try:
+        forecast_data = forecast_next_24_raw(start_data, model)
+        return forecast_data
+    except Exception as e:
+        # Catch unexpected errors during the iterative prediction
+        print(f"Prediction error during 24h forecast: {e}")
+        # Return a generic 500 error for production environments
+        raise HTTPException(status_code=500, detail="Internal prediction error during multi-step forecast.")
