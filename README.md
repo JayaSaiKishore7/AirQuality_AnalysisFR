@@ -223,6 +223,7 @@ uvicorn Api.main:app --host 127.0.0.1 --port 8000
 ```
 streamlit run app.py
 ```
+## 🖼️ Screenshots
 ## 📄 License
 ```
 This project is released under the MIT License.
