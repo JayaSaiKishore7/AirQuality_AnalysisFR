@@ -33,12 +33,11 @@ FEATURE_COLS = [
 # Load label encoders (saved by preprocess_data.py)
 ENCODER_DIR = os.path.join("models", "encoders")
 
-pollutant_le = joblib.load(os.path.join(ENCODER_DIR, "pollutant_encoder.pkl"))
-influence_le = joblib.load(os.path.join(ENCODER_DIR, "influence_encoder.pkl"))
-evaluation_le = joblib.load(os.path.join(ENCODER_DIR, "evaluation_encoder.pkl"))
-implantation_le = joblib.load(os.path.join(ENCODER_DIR, "implantation_encoder.pkl"))
-site_le = joblib.load(os.path.join(ENCODER_DIR, "site_encoder.pkl"))
-
+pollutant_le = joblib.load(os.path.join(ENCODER_DIR, "polluant_encoder.pkl"))
+influence_le = joblib.load(os.path.join(ENCODER_DIR, "type d'influence_encoder.pkl"))
+evaluation_le = joblib.load(os.path.join(ENCODER_DIR, "type d'évaluation_encoder.pkl"))
+implantation_le = joblib.load(os.path.join(ENCODER_DIR, "type d'implantation_encoder.pkl"))
+site_le = joblib.load(os.path.join(ENCODER_DIR, "code site_encoder.pkl"))
 
 # Request / response schemas
 class PredictionInput(BaseModel):
