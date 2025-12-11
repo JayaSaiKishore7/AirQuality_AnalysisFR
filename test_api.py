@@ -1,48 +1,80 @@
+# test_api.py
 import requests
-import time
+import json
+from datetime import datetime
+import os
+import pandas as pd
 
-print("=" * 50)
-print("🧪 Testing FastAPI Connection")
-print("=" * 50)
+API = "http://127.0.0.1:8000"
 
-API_URL = "http://127.0.0.1:8000"
+def test_root():
+    try:
+        r = requests.get(f"{API}/", timeout=3)
+        print("/ →", r.status_code, r.text)
+    except Exception as e:
+        print("Root failed:", e)
 
-# Test 1: Basic connection
-print("\n1. Testing basic connection...")
-try:
-    start = time.time()
-    response = requests.get(f"{API_URL}/", timeout=5)
-    elapsed = time.time() - start
-    
-    if response.status_code == 200:
-        print(f"   ✅ SUCCESS: Status {response.status_code}")
-        print(f"   Response: {response.json()}")
-        print(f"   Response time: {elapsed:.2f}s")
+def test_meta():
+    try:
+        r = requests.get(f"{API}/meta", timeout=5)
+        print("/meta →", r.status_code)
+        if r.ok:
+            meta = r.json()
+            print("Meta keys:", list(meta.keys()))
+            print("Pollutants sample:", meta.get("pollutants", [])[:5])
+    except Exception as e:
+        print("/meta failed:", e)
+
+def test_forecast_with_sample():
+    # try to build a payload from processed CSV if available
+    processed_path = os.path.join("data", "processed", "df_raw_cleaned.csv")
+    if os.path.exists(processed_path):
+        df = pd.read_csv(processed_path, parse_dates=["date"])
+        # pick a row with non-null lag features
+        row = df.dropna(subset=["lag_1", "lag_24", "rolling_3"]).iloc[-1]
+        payload = {
+            "datetime": row["date"].strftime("%Y-%m-%d %H:%M:%S"),
+            "Latitude": float(row["Latitude"]),
+            "Longitude": float(row["Longitude"]),
+            "pollutant": row.get("Polluant", ""),
+            "influence": row.get("type d'influence", ""),
+            "evaluation": row.get("type d'évaluation", ""),
+            "implantation": row.get("type d'implantation", ""),
+            "site_code": row.get("code site", ""),
+            "lag_1": float(row["lag_1"]),
+            "lag_24": float(row["lag_24"]),
+            "rolling_3": float(row["rolling_3"]),
+        }
     else:
-        print(f"   ❌ FAILED: Status {response.status_code}")
-        print(f"   Response: {response.text}")
-        
-except Exception as e:
-    print(f"   ❌ ERROR: {type(e).__name__}: {e}")
+        # fallback synthetic payload (likely to be encoded via fallback logic)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        payload = {
+            "datetime": now,
+            "Latitude": 43.295,
+            "Longitude": 5.375,
+            "pollutant": "NO2",
+            "influence": "Trafic routier",
+            "evaluation": "Réglementaire",
+            "implantation": "URBAIN",
+            "site_code": "01001A",  # change to a valid code if needed
+            "lag_1": 15.0,
+            "lag_24": 14.0,
+            "rolling_3": 14.5,
+        }
 
-# Test 2: Metadata
-print("\n2. Testing metadata endpoint...")
-try:
-    start = time.time()
-    response = requests.get(f"{API_URL}/meta", timeout=10)
-    elapsed = time.time() - start
-    
-    if response.status_code == 200:
-        data = response.json()
-        print(f"   ✅ SUCCESS: Status {response.status_code}")
-        print(f"   Pollutants: {len(data.get('pollutants', []))}")
-        print(f"   Sites: {len(data.get('sites_sample', []))}")
-        print(f"   Response time: {elapsed:.2f}s")
-    else:
-        print(f"   ❌ FAILED: Status {response.status_code}")
-        
-except Exception as e:
-    print(f"   ❌ ERROR: {type(e).__name__}: {e}")
+    print("Forecast payload:", json.dumps(payload, indent=2, ensure_ascii=False))
+    try:
+        r = requests.post(f"{API}/forecast/24h", json=payload, timeout=20)
+        print("forecast ->", r.status_code)
+        if r.ok:
+            data = r.json()
+            print("Received forecast length:", len(data))
+            print("First item:", data[0])
+    except Exception as e:
+        print("Forecast call failed:", e)
 
-print("\n" + "=" * 50)
-print("✅ Test complete!")
+if __name__ == "__main__":
+    print("Testing API connectivity...")
+    test_root()
+    test_meta()
+    test_forecast_with_sample()
