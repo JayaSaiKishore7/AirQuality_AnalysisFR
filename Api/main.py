@@ -13,17 +13,17 @@ from pydantic import BaseModel
 import pandas as pd
 import uvicorn
 
-# --- Config
+# Config
 MODEL_PATH = os.path.join("models", "best_model.pkl")
 ENCODER_DIR = os.path.join("models", "encoders")
 REQUIRED_ENCODERS = ["pollutant", "influence", "evaluation", "implantation", "site"]
 
-# --- Logging
+# Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("airquality-api")
 
-# --- App + CORS (allow Streamlit origin)
-app = FastAPI(title="Air Quality Forecast API (simple, robust)")
+# App + CORS (allow Streamlit origin)
+app = FastAPI(title="Air Quality Forecast API (final)")
 origins = [
     "http://localhost",
     "http://localhost:8501",
@@ -38,32 +38,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Helpers
+# Utils
 def norm(s: str) -> str:
     if s is None:
         return ""
     return unicodedata.normalize("NFKD", str(s)).encode("ASCII", "ignore").decode("ASCII").lower()
 
 def find_encoder_filename(keywords):
-    """Find best matching file in ENCODER_DIR for given keywords."""
     if not os.path.isdir(ENCODER_DIR):
         return None
     files = os.listdir(ENCODER_DIR)
     norm_files = {f: norm(f) for f in files}
-
     # exact stem match
     for f, nf in norm_files.items():
         stem = os.path.splitext(f)[0]
         for kw in keywords:
             if norm(kw) == stem or norm(kw) == nf:
                 return os.path.join(ENCODER_DIR, f)
-
     # substring
     for f, nf in norm_files.items():
         for kw in keywords:
             if norm(kw) in nf:
                 return os.path.join(ENCODER_DIR, f)
-
     # fuzzy
     for f, nf in norm_files.items():
         for kw in keywords:
@@ -76,7 +72,7 @@ def safe_load_encoder_by_keywords(keywords, target_name):
     if path is None:
         files = os.listdir(ENCODER_DIR) if os.path.isdir(ENCODER_DIR) else []
         sample = files[:30]
-        raise RuntimeError(f"Could not find encoder for {target_name} in {ENCODER_DIR}. Available (sample): {sample}")
+        raise RuntimeError(f"Could not find encoder for {target_name}. Available (sample): {sample}")
     try:
         le = joblib.load(path)
     except Exception as e:
@@ -93,7 +89,7 @@ def load_classes_json_if_exists(stem: str):
             return None
     return None
 
-# --- Load model & encoders
+# Load model & encoders
 log.info("Loading model and encoders...")
 if not os.path.exists(MODEL_PATH):
     raise RuntimeError(f"Model not found at {MODEL_PATH}")
@@ -126,7 +122,7 @@ if missing:
 
 log.info("Encoders loaded: %s", list(encoders.keys()))
 
-# --- Encoding fallback
+# Encoding fallback
 def encode_with_fallback(le, raw_value: str, mapping: Optional[dict] = None) -> int:
     if raw_value is None:
         raise ValueError("Missing value")
@@ -151,13 +147,12 @@ def encode_with_fallback(le, raw_value: str, mapping: Optional[dict] = None) -> 
         return int(le.transform([close[0]])[0])
     raise ValueError(f"Unknown label '{s}'. Examples: {choices[:10]}")
 
-# optional small mappings
 POLLUTANT_MAP = {"no2": "NO2", "pm10": "PM10", "pm2.5": "PM2.5", "pm25": "PM2.5", "o3": "O3"}
 INFLUENCE_MAP = {"traffic": "Trafic routier", "trafic": "Trafic routier", "industrie": "Industriel"}
 EVAL_MAP = {"reglementaire": "Réglementaire", "reg": "Réglementaire"}
 IMPL_MAP = {"urbain": "URBAIN", "rural": "RURAL"}
 
-# --- Pydantic models
+# Pydantic models
 class ForecastRequest(BaseModel):
     datetime: str
     Latitude: float
@@ -175,7 +170,7 @@ class ForecastResult(BaseModel):
     forecast_time: str
     predicted_valeur: float
 
-# --- Routes
+# Routes
 @app.get("/")
 def root():
     return {"message": "Air Quality Forecast API", "status": "ok"}
@@ -197,7 +192,7 @@ def meta():
         "influences": out.get("influences", []),
         "evaluations": out.get("evaluations", []),
         "implantations": out.get("implantations", []),
-        "sites_sample": out.get("sites", [])[:300],
+        "sites_sample": out.get("sites", [])[:500],
     }
 
 @app.post("/forecast/24h", response_model=List[ForecastResult])
@@ -256,7 +251,6 @@ def forecast_24h(req: ForecastRequest):
         log.exception("Forecast error")
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
-# --- run
 if __name__ == "__main__":
-    log.info("Starting API on 0.0.0.0:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    log.info("Starting API on 127.0.0.1:8000")
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
