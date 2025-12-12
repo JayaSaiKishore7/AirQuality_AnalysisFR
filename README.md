@@ -204,22 +204,35 @@ Features include:
 
 ## ▶️ How to Run Locally
 
-1️⃣ Clone the repository
+## 1️ Clone the repository
 ```
 git clone https://github.com/JayaSaiKishore7/AirQuality_AnalysisFR.git
 cd AirQuality_AnalysisFR
 ```
-## 2️⃣ Create conda environment
+## 2️ Create conda environment
 ```
 conda env create -f environment.yml
 conda activate airquality-ml
 ```
-## 3️⃣ Start FastAPI
+## 3 Preprocess the Raw Data
+```
+scripts/python preprocess_data.py
+```
+## 4 Train Models (and log runs with MLflow)
+```
+python train_model.py
+```
+## 5 View MLflow UI
+```
+mlflow ui --port 5000
+http://127.0.0.1:5000
+```
+## 6 Start FastAPI
 ```
 python Api/main.py
 uvicorn Api.main:app --host 127.0.0.1 --port 8000
 ```
-## 4️⃣ Start Streamlit
+## 7 Start Streamlit
 ```
 streamlit run app.py
 ```
