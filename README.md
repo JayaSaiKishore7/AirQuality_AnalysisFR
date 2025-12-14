@@ -204,12 +204,12 @@ Features include:
 
 ## ▶️ How to Run Locally
 
-## 1️ Clone the repository
+## 1 Clone the repository
 ```
 git clone https://github.com/JayaSaiKishore7/AirQuality_AnalysisFR.git
 cd AirQuality_AnalysisFR
 ```
-## 2️ Create conda environment
+## 2 Create conda environment
 ```
 conda env create -f environment.yml
 conda activate airquality-ml
