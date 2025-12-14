@@ -107,13 +107,14 @@ This project uses historical air quality data and builds ML models (Random Fores
 ## 🔧 Tech Stack
 
 ```
-  Component      -    Technology                               
-  Backend API    -   **FastAPI**, Uvicorn                     
-  Frontend UI    -   **Streamlit**, Plotly, Matplotlib        
-  Machine Learning -  **XGBoost**, Random Forest, Scikit-Learn 
-  Data           -   Pandas, NumPy                            
-  Serialization  -    Joblib                                   
-  Environment    -    conda                                    
+  Component         -    Technology                               
+  Backend API       -    FastAPI, Uvicorn                     
+  Frontend UI       -    Streamlit, Plotly, Matplotlib        
+  Machine Learning  -    XGBoost, Random Forest, Scikit-Learn 
+  Deep Learning     -    Neural Networks, LSTM, GRU 
+  Data              -    Pandas, NumPy                            
+  Serialization     -    Joblib                                   
+  Environment       -    conda                                    
 ```
 
 ## 📁 Repository Structure
