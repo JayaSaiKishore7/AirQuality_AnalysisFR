@@ -36,6 +36,7 @@ def check_api_root():
         return False
 
 @st.cache_data(ttl=600)
+# st.cache_data(ttl=1000)
 def load_meta_from_api():
     try:
         r = requests.get(f"{API_BASE}/meta", timeout=6)
