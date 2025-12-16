@@ -158,6 +158,7 @@ selected_site = st.sidebar.selectbox("Site (code)", options=sites[:200], index=0
 selected_influence = st.sidebar.selectbox("Influence", options=influences or ["Trafic routier"], index=0)
 selected_evaluation = st.sidebar.selectbox("Evaluation", options=evaluations or ["Réglementaire"], index=0)
 selected_implantation = st.sidebar.selectbox("Implantation", options=implantations or ["URBAIN"], index=0)
+## selected_implantation = st.sidebar.selectbox("Implantation", options=implantations or ["URBAIN"], index=1)
 
 with st.sidebar.expander("📈 Data Info", expanded=True):
     st.write(f"Total records: **{len(df):,}**")
