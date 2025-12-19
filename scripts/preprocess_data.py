@@ -33,6 +33,8 @@ def preprocess_raw_data():
     ]
 
     df = df[selected_cols].copy()
+    
+    ## df = df[selected_cols].copy()
 
     #  Drop unusable rows 
     df = df.dropna(subset=["Date de début", "valeur", "Latitude", "Longitude"])
