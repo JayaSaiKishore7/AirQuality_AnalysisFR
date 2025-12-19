@@ -196,6 +196,7 @@ def meta():
     }
 
 @app.post("/forecast/24h", response_model=List[ForecastResult])
+## @app.post("/forecast/24h", response_model=List[ForecastResult])
 def forecast_24h(req: ForecastRequest):
     try:
         try:
