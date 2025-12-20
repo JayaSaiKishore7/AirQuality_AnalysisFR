@@ -28,6 +28,7 @@ st.set_page_config(layout="wide", page_title="Air Quality Forecast Dashboard", p
 
 # Helpers / caching
 @st.cache_data(ttl=300)
+## @st.cache_data(ttl=600)
 def check_api_root():
     try:
         r = requests.get(f"{API_BASE}/", timeout=3)
