@@ -107,6 +107,9 @@ st.markdown(
 st.title("🌍 Air Quality Forecast Dashboard")
 st.markdown("Interactive forecasting dashboard — PACA region")
 
+## st.title(" Air Quality Forecast Dashboard")
+## st.markdown("Interactive forecasting dashboard — PACA region")
+
 # Sidebar
 with st.sidebar:
     st.header("⚙️ Controls & Status")
