@@ -13,7 +13,7 @@ from pydantic import BaseModel
 import pandas as pd
 import uvicorn
 
-# Config
+# Configuration 
 MODEL_PATH = os.path.join("models", "best_model.pkl")
 ENCODER_DIR = os.path.join("models", "encoders")
 REQUIRED_ENCODERS = ["pollutant", "influence", "evaluation", "implantation", "site"]
@@ -38,7 +38,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Utils
+# Utills
 def norm(s: str) -> str:
     if s is None:
         return ""
