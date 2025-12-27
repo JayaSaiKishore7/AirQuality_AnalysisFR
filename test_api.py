@@ -59,6 +59,7 @@ def test_forecast():
     print("Payload:", json.dumps(payload, ensure_ascii=False, indent=2))
     try:
         r = requests.post(f"{API}/forecast/24h", json=payload, timeout=20)
+        ## r = requests.post(f"{API}/forecast/24h", json=payload, timeout=30)
         print("forecast ->", r.status_code)
         if r.ok:
             data = r.json()
