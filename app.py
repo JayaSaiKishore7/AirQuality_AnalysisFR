@@ -26,7 +26,7 @@ PALETTE = {
 st.set_page_config(layout="wide", page_title="Air Quality Forecast Dashboard", page_icon="🌍")
 
 
-# Helpers / caching
+# Helperss / caching
 @st.cache_data(ttl=300)
 ## @st.cache_data(ttl=600)
 def check_api_root():
