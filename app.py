@@ -83,7 +83,7 @@ def compute_empirical_std(filtered_df, window=168):
     return float(np.nanstd(resid))
 
 
-# Session state
+# Session states
 
 if "forecast_data" not in st.session_state:
     st.session_state["forecast_data"] = None
