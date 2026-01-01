@@ -133,7 +133,7 @@ with st.sidebar:
     st.caption("Select pollutant & site, then generate a 24-hour forecast.")
 
 
-# Load data & metadata
+# Loaddata & metadata
 
 df = load_processed()
 if df is None:
