@@ -9,7 +9,7 @@ import plotly.express as px
 import numpy as np
 
 
-# Config
+# Configuration 
 API_BASE = "http://127.0.0.1:8000"
 PROCESSED_PATH = "data/processed/df_raw_cleaned.csv"
 
