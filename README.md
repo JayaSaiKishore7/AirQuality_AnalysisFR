@@ -1,4 +1,4 @@
-## 🌍 AirQuality Forecasting – Côte d’Azur Region - France 
+##  AirQuality Forecasting – Côte d’Azur Region - France 
 
 Real-time air quality forecasting using machine learning, FastAPI, and Streamlit.
 
