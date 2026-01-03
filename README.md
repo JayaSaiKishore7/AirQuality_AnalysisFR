@@ -3,7 +3,7 @@
 Real-time air quality forecasting using machine learning, FastAPI, and Streamlit.
 
 ---
-## 📌 Table of Contents
+##  Table of Contents
 
  1) Project Overview
  2) Features
@@ -20,7 +20,7 @@ Real-time air quality forecasting using machine learning, FastAPI, and Streamlit
 13) License
 
 
-## 📖 Project Overview
+##  Project Overview
 
 Air pollution is a major environmental concern in the Côte d’Azur (PACA) region of France.
 This project provides:
@@ -31,8 +31,8 @@ This project provides:
 - Data exploration & visualization
 - API endpoints for integration
 
-## ⭐ Features
-🧠 Machine Learning
+##  Features
+Machine Learning
 
 - Forecasts next 24 hours of pollutant concentration
 
@@ -48,7 +48,7 @@ This project provides:
 
 This project uses historical air quality data and builds ML models (Random Forest, XGBoost) to forecast hourly pollutant concentration for the next 24 hours.
 
-## ⚡ FastAPI Backend
+## FastAPI Backend
 
 - Lightweight inference API
 
@@ -56,7 +56,7 @@ This project uses historical air quality data and builds ML models (Random Fores
 
 - Returns 24-hour horizon predictions
 
-## 📊 Streamlit Dashboard
+##  Streamlit Dashboard
 
 - Historical charts
 
@@ -66,7 +66,7 @@ This project uses historical air quality data and builds ML models (Random Fores
 
 - Interactive UI & filtering
 
-## 📁 Reproducible Pipeline
+## Reproducible Pipeline
 
 - Data processing
 
@@ -76,7 +76,7 @@ This project uses historical air quality data and builds ML models (Random Fores
 
 - Artifacts stored in models/
 
- ## 🏗️ System Architecture
+ ##  System Architecture
  ```
            ┌───────────────────┐
            │  Raw Air Quality   │
@@ -104,7 +104,7 @@ This project uses historical air quality data and builds ML models (Random Fores
         │ Charts + Forecast + UI   │
         └──────────────────────────┘
 ```
-## 🔧 Tech Stack
+## Tech Stack
 
 ```
   Component         -    Technology                               
@@ -117,7 +117,7 @@ This project uses historical air quality data and builds ML models (Random Fores
   Environment       -    conda                                    
 ```
 
-## 📁 Repository Structure
+##  Repository Structure
 ```
 AirQuality_AnalysisFR/
 │
@@ -142,7 +142,7 @@ AirQuality_AnalysisFR/
 ├── .gitignore
 └── README.md
 ```
-## 📡 API Documentation (FastAPI)
+##  API Documentation (FastAPI)
 Base URL
 ```
 http://127.0.0.1:8000
@@ -193,7 +193,7 @@ Returns available metadata:
   }
 ]
 ```
-## 🎨 Streamlit Dashboard
+## Streamlit Dashboard
 
 Features include:
 - Pollutant & Site selection
@@ -203,7 +203,7 @@ Features include:
 - API connectivity indicators
  -Diagnostic outputs
 
-## ▶️ How to Run Locally
+## How to Run Locally
 
 ## 1 Clone the repository
 ```
@@ -237,9 +237,9 @@ uvicorn Api.main:app --host 127.0.0.1 --port 8000
 ```
 streamlit run app.py
 ```
-## 🖼️ Screenshots
+## Screenshots
 
-📸 Dashboard Preview
+ Dashboard Preview
 
 ![History Plot](images/Screenshot%202025-12-11%20211855.png)
 
@@ -252,7 +252,7 @@ streamlit run app.py
 ![Forecast Plot](images/Screenshot%202025-12-11%20222832.png)
 
 
-## 📄 License
+## License
 ```
 This project is released under the MIT License.
 Feel free to use, modify, and distribute.
