@@ -3,7 +3,7 @@
 Real-time air quality forecasting using machine learning, FastAPI, and Streamlit.
 
 ---
-##  Table of Contents
+##  Table of Content
 
  1) Project Overview
  2) Features
