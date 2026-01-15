@@ -217,7 +217,8 @@ conda activate airquality-ml
 ```
 ## 3 Preprocess the Raw Data
 ```
-scripts/python preprocess_data.py
+python scripts\preprocess_data.py
+
 ```
 ## 4 Train Models (and log runs with MLflow)
 ```
