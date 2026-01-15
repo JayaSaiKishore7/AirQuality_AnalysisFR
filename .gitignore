@@ -1,9 +1,12 @@
-# Ignore datasets
-data/raw/
-data/sample/
-data/processed/
-/data/processed/*
-!/data/processed/*.dvc
+# Track datasets
+# data/raw/
+# data/sample/
+# data/processed/
+
+# Large combined dataset (exceeds GitHub limit)
+data/raw/Airquality_PACA_2025_Combined.csv
+
+
 
 
 # Ignore environment files
