@@ -1,22 +1,58 @@
+# version: "3.9"
+
+# services:
+#   api:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile.api
+#     container_name: airquality-api
+#     ports:
+#       - "8000:8000"
+
+#   streamlit:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile.streamlit
+#     container_name: airquality-ui
+#     environment:
+#       - API_BASE=http://api:8000
+#     ports:
+#       - "8501:8501"
+#     depends_on:
+#       - api
+
+
+
+
 version: "3.9"
 
 services:
   api:
+    container_name: airquality-api
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: airquality-api
     ports:
       - "8000:8000"
-
-  streamlit:
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+  ui:
+    container_name: airquality-ui
     build:
       context: .
       dockerfile: Dockerfile.streamlit
-    container_name: airquality-ui
-    environment:
-      - API_BASE=http://api:8000
     ports:
       - "8501:8501"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      - API_BASE=http://api:8000
