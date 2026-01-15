@@ -51,7 +51,7 @@ def test_forecast():
             "influence": "Trafic routier",
             "evaluation": "Réglementaire",
             "implantation": "URBAIN",
-            "site_code": "01001A",
+            "site_code": "FR02001",
             "lag_1": 10.0,
             "lag_24": 9.0,
             "rolling_3": 9.5,

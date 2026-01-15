@@ -16,3 +16,20 @@ __pycache__/
 
 # VS Code settings
 .vscode/
+
+
+# MLflow
+mlruns/
+
+# Model artifacts
+models/encoders/
+
+# Reports
+reports/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/

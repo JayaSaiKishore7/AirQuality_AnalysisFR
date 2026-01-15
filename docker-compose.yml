@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: airquality-api
+    ports:
+      - "8000:8000"
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: airquality-ui
+    environment:
+      - API_BASE=http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api

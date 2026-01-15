@@ -64,11 +64,20 @@ def main():
     print(f"Train size: {X_train.shape}, Test size: {X_test.shape}")
 
     # 4. Define models
+    # rf = RandomForestRegressor(
+    #     n_estimators=300,
+    #     random_state=42,
+    #     n_jobs=-1
+    # )
+
     rf = RandomForestRegressor(
-        n_estimators=300,
-        random_state=42,
-        n_jobs=-1
-    )
+    n_estimators=100,
+    max_depth=20,
+    min_samples_leaf=10,
+    random_state=42,
+    n_jobs=2
+   )
+
 
     xgb = XGBRegressor(
         n_estimators=300,
@@ -91,7 +100,9 @@ def main():
         mlflow.log_metric("mae", res_rf["mae"])
         mlflow.log_metric("rmse", res_rf["rmse"])
         mlflow.log_metric("r2", res_rf["r2"])
-        mlflow.sklearn.log_model(res_rf["model"], artifact_path="model")
+        # mlflow.sklearn.log_model(res_rf["model"], artifact_path="model")
+        mlflow.sklearn.log_model(res_rf["model"], name="model")
+
 
         results.append(res_rf)
 
@@ -103,7 +114,9 @@ def main():
         mlflow.log_metric("mae", res_xgb["mae"])
         mlflow.log_metric("rmse", res_xgb["rmse"])
         mlflow.log_metric("r2", res_xgb["r2"])
-        mlflow.sklearn.log_model(res_xgb["model"], artifact_path="model")
+        # mlflow.sklearn.log_model(res_xgb["model"], artifact_path="model")
+        mlflow.sklearn.log_model(res_xgb["model"], name="model")
+
 
         results.append(res_xgb)
 

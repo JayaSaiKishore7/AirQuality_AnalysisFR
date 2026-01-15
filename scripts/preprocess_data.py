@@ -81,7 +81,7 @@ def preprocess_raw_data():
         encoder_path = os.path.join(encoder_dir, f"{clean_name}_encoder.pkl")
         joblib.dump(le, encoder_path)
 
-    print("✔ Encoders saved.")
+    print("Encoders saved.")
 
     # Rename encoded columns for consistency with modeling
     df = df.rename(
