@@ -222,7 +222,8 @@ python scripts\preprocess_data.py
 ```
 ## 4 Train Models (and log runs with MLflow)
 ```
-python train_model.py
+python scripts\preprocess_data.py
+
 ```
 ## 5 View MLflow UI
 ```
