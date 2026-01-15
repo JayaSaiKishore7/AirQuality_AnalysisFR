@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/
+
+# MLflow
+mlruns/
+
+# Local environments
+.env
+.venv
+venv/
+conda/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (keep only what API needs)
+data/raw/
+data/sample/
+
+# Reports
+reports/
+
+# Docker
+docker-compose.yml
+Dockerfile*
