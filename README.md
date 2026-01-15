@@ -14,67 +14,80 @@ Real-time air quality forecasting using machine learning, FastAPI, and Streamlit
  7) Modelling Approach
  8) API Documentation (FastAPI)
  9) Streamlit Dashboard
-10) How to Run Locally
-11) Screenshots
-12) Future Improvements
-13) License
+10) How to Run the Application
+     - Using Docker (Recommended)
+     - Local Development (Optional) 
+12) Screenshots
+13) Future Improvements
+14) License
 
 
 ##  Project Overview
 
 Air pollution is a major environmental concern in the Côte d’Azur (PACA) region of France.
-This project provides:
+This project develops a machine-learning–based forecasting system to predict hourly pollutant concentrations for the next 24 hours, utilising historical air quality data.
 
 - Real-time pollutant forecasting
 - Interactive dashboards
 - ML model predictions with lag & rolling temporal features
 - Data exploration & visualization
+- A reproducible ML pipeline
+- A FastAPI inference backend
 - API endpoints for integration
+- Full containerization using Docker
 
-##  Features
-Machine Learning
+## Key Features
+### Machine Learning
 
-- Forecasts next 24 hours of pollutant concentration
+- 24-hour ahead pollutant concentration forecasting
 
 - Feature engineering:
 
 - Lag features (1h, 24h)
 
-- Rolling mean
+- Rolling statistics
 
-- Time-based features (hour, month, weekday)
+- Time-based features (hour, weekday, month)
 
-- Categorical encodings (site, pollutant, influence type)
+- Categorical encoding (site, pollutant, influence, evaluation, implantation)
 
-This project uses historical air quality data and builds ML models (Random Forest, XGBoost) to forecast hourly pollutant concentration for the next 24 hours.
+### Models used:
 
-## FastAPI Backend
+- Random Forest
 
-- Lightweight inference API
+- XGBoost (best-performing model saved)
 
-- Encodes inputs using saved label encoders
+- FastAPI Backend
 
-- Returns 24-hour horizon predictions
+- Lightweight inference-only API
 
-##  Streamlit Dashboard
+- Loads trained model and encoders
 
-- Historical charts
+- Endpoints for metadata and forecasting
 
-- Real-time REST API integration
+- Docker-ready production configuration
 
-- Downloadable CSV forecast
+### Streamlit Dashboard
 
-- Interactive UI & filtering
+- Interactive pollutant and site selection
 
-## Reproducible Pipeline
+- Historical air quality visualization
 
-- Data processing
+- 24-hour forecast visualization
+
+- CSV download of predictions
+
+- Real-time API connectivity
+
+### Reproducible Pipeline
+
+- Data preprocessing
 
 - Encoder generation
 
-- Model training & evaluation
+- Model training and evaluation
 
-- Artifacts stored in models/
+- Artifacts stored under models/
 
  ##  System Architecture
  ```
@@ -96,7 +109,7 @@ This project uses historical air quality data and builds ML models (Random Fores
                      │ (best_model.pkl)
         ┌────────────▼────────────┐
         │       FastAPI API        │
-        │    /meta, /forecast      │
+        │    /meta, /forecast/24h  │
         └────────────┬────────────┘
                      │ (JSON)
         ┌────────────▼────────────┐
@@ -107,16 +120,17 @@ This project uses historical air quality data and builds ML models (Random Fores
 ## Tech Stack
 
 ```
-  Component         -    Technology                               
-  Backend API       -    FastAPI, Uvicorn                     
-  Frontend UI       -    Streamlit, Plotly, Matplotlib        
-  Machine Learning  -    XGBoost, Random Forest, Scikit-Learn 
-  Deep Learning     -    Neural Networks, LSTM, GRU 
-  Data              -    Pandas, NumPy                            
-  Serialization     -    Joblib                                   
-  Environment       -    conda                                    
+  Component           -    Technology                               
+  Backend API         -    FastAPI, Uvicorn                     
+  Frontend UI         -    Streamlit, Plotly, Matplotlib        
+  Machine Learning    -    XGBoost, Random Forest, Scikit-Learn 
+  Deep Learning       -    Neural Networks, LSTM, GRU 
+  Data processing     -    Pandas, NumPy                            
+  Serialization       -    Joblib
+  Experiment Tracking -    MLflow                                 
+  Environment         -    conda
+  Deployment          -    Docker, Docker Compose                             
 ```
-
 ##  Repository Structure
 ```
 AirQuality_AnalysisFR/
@@ -126,26 +140,49 @@ AirQuality_AnalysisFR/
 │
 ├── data/
 │   ├── raw/                   # Raw CSV files
-│   ├── processed/             # Cleaned dataset + DVC tracked
+│   ├── processed/             # Processed dataset (used in inference)
 │   │   └── df_raw_cleaned.csv
 │   └── sample/
 │
 ├── models/
-│   ├── best_model.pkl         # Saved best ML model
-│   └── encoders/              # Label encoders
+│   ├── best_model.pkl         # Trained ML model
+│   └── encoders/              # Saved label encoders
 │
-├── notebooks/                 # Jupyter notebooks for EDA
+├── notebooks/                 # EDA notebooks
+│
+├── scripts/
+│   ├── preprocess_data.py     # Data preprocessing
+│   └── train_model.py         # Model training
 │
 ├── app.py                     # Streamlit dashboard
-├── test_api.py                # API connectivity script
-├── environment.yml            # Conda environment file
+├── test_api.py                # API test script
+├── requirements.txt           # Python dependencies
+├── environment.yml            # Conda environment
+├── Dockerfile.api             # FastAPI Dockerfile
+├── Dockerfile.streamlit       # Streamlit Dockerfile
+├── docker-compose.yml         # Multi-container orchestration
 ├── .gitignore
+├── .dvcignore
 └── README.md
+
 ```
+## Modelling Approach
+
+- Time-based train/test split
+
+- Models evaluated using RMSE
+
+- Best model selected automatically
+
+- Final model saved as best_model.pkl
+
+- Used only for inference in production
+
 ##  API Documentation (FastAPI)
 Base URL
 ```
-http://127.0.0.1:8000
+http://127.0.0.1:8000    http://localhost:8000
+
 ```
 ## GET /
 Health check.
@@ -160,12 +197,13 @@ Response
 Returns available metadata:
 ```
 {
-  "pollutants": ["CO", "NO2", "PM10", ...],
-  "influences": ["Trafic routier", "Fond", "Industriel"],
-  "evaluations": ["Réglementaire", "Mesures indicatives"],
-  "implantations": ["URBAIN", "RURAL"],
-  "sites_sample": ["FR02001", "FR02004", ...]
+  "pollutants": ["CO", "NO2", "O3", "PM10", "PM2.5"],
+  "influences": ["Fond", "Industrielle", "Trafic"],
+  "evaluations": ["mesures fixes", "mesures indicatives"],
+  "implantations": ["Urbaine", "Rurale", "Périurbaine"],
+  "sites_sample": ["FR02001", "FR02004", "FR02008"]
 }
+
 ```
 
 ## POST /forecast/24h
@@ -175,14 +213,15 @@ Returns available metadata:
   "Latitude": 43.4020,
   "Longitude": 4.9819,
   "pollutant": "PM10",
-  "influence": "Trafic routier",
-  "evaluation": "Réglementaire",
-  "implantation": "URBAIN",
+  "influence": "Trafic",
+  "evaluation": "mesures fixes",
+  "implantation": "Urbaine",
   "site_code": "FR02008",
   "lag_1": 12.4,
   "lag_24": 8.1,
   "rolling_3": 10.3
 }
+
 ```
 ## Response (24 items):
 ```
@@ -204,6 +243,22 @@ Features include:
  -Diagnostic outputs
 
 ## How to Run Locally
+### Option 1: Using Docker (Recommended)
+
+Prerequisites:
+
+- Docker Desktop is installed and running
+```
+docker compose up --build
+```
+### Access:
+- Streamlit UI: http://localhost:8501
+- FastAPI: http://localhost:8000
+### To Stop
+```
+docker compose down
+```
+### Option 2: Local Development (Optional)
 
 ## 1 Clone the repository
 ```
