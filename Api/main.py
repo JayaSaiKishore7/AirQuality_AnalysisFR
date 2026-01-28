@@ -62,7 +62,7 @@ def load_artifacts():
     encoders["influence"] = load_encoder(["influence"])
     encoders["evaluation"] = load_encoder(["evaluation"])
     encoders["implantation"] = load_encoder(["implantation"])
-    encoders["site"] = load_encoder(["site"])
+    encoders["site"] = load_encoder(["sites"])
 
     log.info("All encoders loaded successfully")
 
