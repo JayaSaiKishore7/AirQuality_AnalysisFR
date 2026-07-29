@@ -1,30 +1,27 @@
-##  AirQuality Forecasting – Côte d’Azur Region - France 
+## AirQuality Forecasting – Côte d'Azur Region, France
 
 Real-time air quality forecasting using machine learning, FastAPI, and Streamlit.
 
 ---
-##  Table of Contents
+## Table of Contents
 
- 1) Project Overview
- 2) Features
- 3) System Architecture
- 4) Tech Stack
- 5) Repository Structure
- 6) Data Processing Pipeline
- 7) Modelling Approach
- 8) API Documentation (FastAPI)
- 9) Streamlit Dashboard
-10) How to Run the Application
-     - Using Docker (Recommended)
-     - Local Development (Optional) 
-12) Screenshots
-13) Future Improvements
-14) License
+1. [Project Overview](#project-overview)
+2. [Key Features](#key-features)
+3. [System Architecture](#system-architecture)
+4. [Tech Stack](#tech-stack)
+5. [Repository Structure](#repository-structure)
+6. [Modelling Approach](#modelling-approach)
+7. [API Documentation (FastAPI)](#api-documentation-fastapi)
+8. [Streamlit Dashboard](#streamlit-dashboard)
+9. [How to Run Locally](#how-to-run-locally)
+   - [Using Docker (Recommended)](#option-1-using-docker-recommended)
+   - [Local Development (Optional)](#option-2-local-development-optional)
+10. [Screenshots](#screenshots)
+11. [License](#license)
 
+## Project Overview
 
-##  Project Overview
-
-Air pollution is a major environmental concern in the Côte d’Azur (PACA) region of France.
+Air pollution is a major environmental concern in the Côte d'Azur (PACA) region of France.
 This project develops a machine-learning–based forecasting system to predict hourly pollutant concentrations for the next 24 hours, utilising historical air quality data.
 
 - Real-time pollutant forecasting
@@ -37,60 +34,39 @@ This project develops a machine-learning–based forecasting system to predict h
 - Full containerization using Docker
 
 ## Key Features
+
 ### Machine Learning
-
 - 24-hour ahead pollutant concentration forecasting
-
 - Feature engineering:
+  - Lag features (1h, 24h)
+  - Rolling statistics
+  - Time-based features (hour, weekday, month)
+  - Categorical encoding (site, pollutant, influence, evaluation, implantation)
+- Models used:
+  - Random Forest
+  - XGBoost (best-performing model saved)
 
-- Lag features (1h, 24h)
-
-- Rolling statistics
-
-- Time-based features (hour, weekday, month)
-
-- Categorical encoding (site, pollutant, influence, evaluation, implantation)
-
-### Models used:
-
-- Random Forest
-
-- XGBoost (best-performing model saved)
-
-- FastAPI Backend
-
+### FastAPI Backend
 - Lightweight inference-only API
-
 - Loads trained model and encoders
-
 - Endpoints for metadata and forecasting
-
 - Docker-ready production configuration
 
 ### Streamlit Dashboard
-
 - Interactive pollutant and site selection
-
 - Historical air quality visualization
-
 - 24-hour forecast visualization
-
 - CSV download of predictions
-
 - Real-time API connectivity
 
 ### Reproducible Pipeline
-
 - Data preprocessing
-
 - Encoder generation
-
 - Model training and evaluation
+- Artifacts stored under `models/`
 
-- Artifacts stored under models/
-
- ##  System Architecture
- ```
+## System Architecture
+```
            ┌───────────────────┐
            │  Raw Air Quality   │
            │      Data (CSV)    │
@@ -131,7 +107,7 @@ This project develops a machine-learning–based forecasting system to predict h
   Environment         -    conda
   Deployment          -    Docker, Docker Compose                             
 ```
-##  Repository Structure
+## Repository Structure
 ```
 AirQuality_AnalysisFR/
 │
@@ -164,36 +140,32 @@ AirQuality_AnalysisFR/
 ├── .gitignore
 ├── .dvcignore
 └── README.md
-
 ```
 ## Modelling Approach
 
 - Time-based train/test split
-
 - Models evaluated using RMSE
-
 - Best model selected automatically
-
-- Final model saved as best_model.pkl
-
+- Final model saved as `best_model.pkl`
 - Used only for inference in production
 
-##  API Documentation (FastAPI)
+## API Documentation (FastAPI)
 Base URL
 ```
 http://127.0.0.1:8000    http://localhost:8000
 
 ```
-## GET /
+### GET /
 Health check.
-Response
+
+Response:
 ```
 {
   "message": "Air Quality Forecast API",
   "status": "ok"
 }
 ```
-## GET /meta
+### GET /meta
 Returns available metadata:
 ```
 {
@@ -206,7 +178,7 @@ Returns available metadata:
 
 ```
 
-## POST /forecast/24h
+### POST /forecast/24h
 ```
 {
   "datetime": "2025-11-19 19:00:00",
@@ -223,7 +195,7 @@ Returns available metadata:
 }
 
 ```
-## Response (24 items):
+### Response (24 items)
 ```
 [
   {
@@ -240,7 +212,7 @@ Features include:
 - 24-hour forecast chart
 - Downloadable CSV
 - API connectivity indicators
- -Diagnostic outputs
+- Diagnostic outputs
 
 ## How to Run Locally
 ### Option 1: Using Docker (Recommended)
@@ -251,53 +223,50 @@ Prerequisites:
 ```
 docker compose up --build
 ```
-### Access:
+#### Access
 - Streamlit UI: http://localhost:8501
 - FastAPI: http://localhost:8000
-### To Stop
+#### To Stop
 ```
 docker compose down
 ```
 ### Option 2: Local Development (Optional)
 
-## 1 Clone the repository
+#### 1. Clone the repository
 ```
 git clone https://github.com/JayaSaiKishore7/AirQuality_AnalysisFR.git
 cd AirQuality_AnalysisFR
 ```
-## 2 Create conda environment
+#### 2. Create conda environment
 ```
 conda env create -f environment.yml
 conda activate airquality-ml
 ```
-## 3 Preprocess the Raw Data
+#### 3. Preprocess the raw data
 ```
 python scripts\preprocess_data.py
-
 ```
-## 4 Train Models (and log runs with MLflow)
+#### 4. Train models (and log runs with MLflow)
 ```
 python scripts\train_model.py
-
 ```
-## 5 View MLflow UI
+#### 5. View MLflow UI
 ```
 mlflow ui --port 5000
 http://127.0.0.1:5000
 ```
-## 6 Start FastAPI
+#### 6. Start FastAPI
 ```
 python Api/main.py
 uvicorn Api.main:app --host 127.0.0.1 --port 8000
 ```
-## 7 Start Streamlit
+#### 7. Start Streamlit
 ```
 streamlit run app.py
 ```
 ## Screenshots
 
- Dashboard Preview
-
+### Dashboard Preview
 ![History Plot](images/Screenshot%202025-12-11%20211855.png)
 
 ### Historical Data View
@@ -308,17 +277,9 @@ streamlit run app.py
 
 ![Forecast Plot](images/Screenshot%202025-12-11%20222832.png)
 
-
 ## License
 ```
 This project is released under the MIT License.
 Feel free to use, modify, and distribute.
 ```
-
-  
-
-
-
-
-
 
