@@ -24,8 +24,13 @@ __pycache__/
 # MLflow
 mlruns/
 
-# Model artifacts
-models/encoders/
+# Model artifacts: only the canonical encoders the API loads are tracked
+models/encoders/*
+!models/encoders/pollutant_encoder.pkl
+!models/encoders/influence_encoder.pkl
+!models/encoders/evaluation_encoder.pkl
+!models/encoders/implantation_encoder.pkl
+!models/encoders/site_encoder.pkl
 
 # Reports
 reports/
@@ -36,3 +41,10 @@ __pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Full Evidently report (uploaded as a CI artifact instead)
+monitoring/drift_report.html
+
+# Local virtualenv
+.venv/
+.pytest_cache/

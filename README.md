@@ -13,11 +13,12 @@ Real-time air quality forecasting using machine learning, FastAPI, and Streamlit
 6. [Modelling Approach](#modelling-approach)
 7. [API Documentation (FastAPI)](#api-documentation-fastapi)
 8. [Streamlit Dashboard](#streamlit-dashboard)
-9. [How to Run Locally](#how-to-run-locally)
+9. [Living System: Daily Data, Forecasts and Drift Monitoring](#living-system-daily-data-forecasts-and-drift-monitoring)
+10. [How to Run Locally](#how-to-run-locally)
    - [Using Docker (Recommended)](#option-1-using-docker-recommended)
    - [Local Development (Optional)](#option-2-local-development-optional)
-10. [Screenshots](#screenshots)
-11. [License](#license)
+11. [Screenshots](#screenshots)
+12. [License](#license)
 
 ## Project Overview
 
@@ -126,9 +127,20 @@ AirQuality_AnalysisFR/
 │
 ├── notebooks/                 # EDA notebooks
 │
+├── airquality/                # Shared code: features, Geod'Air client, forecasting, drift
+│
 ├── scripts/
 │   ├── preprocess_data.py     # Data preprocessing
-│   └── train_model.py         # Model training
+│   ├── train_model.py         # Model training
+│   ├── build_reference.py     # Station coordinates + drift reference sample
+│   ├── fetch_geodair.py       # Daily: pull live Geod'Air data
+│   ├── make_forecasts.py      # Daily: 24h forecasts for all stations
+│   └── monitor_drift.py       # Daily: Evidently drift + forecast skill
+│
+├── tests/                     # pytest suite
+├── monitoring/                # Drift summaries (updated daily)
+├── deploy/huggingface/        # Hugging Face Space Dockerfile + start script
+├── .github/workflows/         # CI, daily forecast cron, HF deploy
 │
 ├── app.py                     # Streamlit dashboard
 ├── test_api.py                # API test script
@@ -204,15 +216,70 @@ Returns available metadata:
   }
 ]
 ```
+### GET /forecasts/latest
+Forecasts made by the daily job from live Geod'Air data. Optional filters: `site_code`, `pollutant`.
+```
+{
+  "issued_at": "2026-10-16 04:31:02",
+  "forecasts": [
+    {"site_code": "FR02008", "pollutant": "PM10", "base_time": "2026-10-16 02:00:00",
+     "horizon_h": 1, "forecast_time": "2026-10-16 03:00:00",
+     "predicted_valeur": 18.4, "last_valeur": 17.9}
+  ]
+}
+```
+
+### GET /monitoring/drift
+Latest drift and forecast-skill summary (`monitoring/drift_summary.json`).
+
 ## Streamlit Dashboard
 
 Features include:
+- Live tab: measured values vs. the latest daily forecast, drift status and forecast skill
 - Pollutant & Site selection
 - Historical charts (7-day trend)
 - 24-hour forecast chart
 - Downloadable CSV
 - API connectivity indicators
 - Diagnostic outputs
+
+## Living System: Daily Data, Forecasts and Drift Monitoring
+
+A GitHub Actions cron job (`.github/workflows/daily-forecast.yml`, 04:30 UTC) keeps the system current:
+
+```
+Geod'Air (data.gouv.fr)  ──►  fetch_geodair.py   data/live/observations/YYYY-MM-DD.csv  (ATMO SUD, 90-day window)
+                         ──►  make_forecasts.py  data/live/forecasts/latest.csv + daily archive
+                         ──►  monitor_drift.py   monitoring/drift_summary.json, history.csv, Evidently HTML report
+                         ──►  commit to main ──► redeploy Hugging Face Space
+```
+
+- **Data source**: the LCSQA/INERIS real-time hourly files
+  (`https://files.data.gouv.fr/ineris/lcsqa/concentrations-de-polluants-atmospheriques-reglementes/temps-reel/{YYYY}/FR_E2_{date}.csv`).
+  The last 3 days are re-downloaded each run because recent files are still revised.
+- **Forecasts**: every station/pollutant known to the encoders with enough recent data (about 90 series) gets a 24h recursive forecast from the existing model.
+- **Drift**: Evidently `DataDriftPreset` compares the last 7 days with a 20k-row sample of the training data
+  (`data/reference/drift_reference.csv`) on values, lag features, hour, weekday, pollutant, site and model predictions.
+  When dataset drift is detected, the workflow opens (or comments on) a GitHub issue labelled `data-drift`. The full HTML report is attached to the run as an artifact.
+- **Forecast skill**: archived forecasts are scored against what was later measured and compared with a persistence baseline (repeat the last value).
+
+Run the same steps locally:
+```
+pip install -r requirements-pipeline.txt
+python scripts/fetch_geodair.py --days 3
+python scripts/make_forecasts.py
+python scripts/monitor_drift.py
+```
+After retraining, rebuild the reference files with `python scripts/build_reference.py`.
+
+### Tests and CI
+`pytest` runs the suite in `tests/` (features, Geod'Air parsing, batch forecasting, drift, API with the real model). `.github/workflows/ci.yml` runs it on every push and pull request.
+
+### Deployment (Hugging Face Spaces, free CPU tier)
+`.github/workflows/deploy-hf.yml` builds a single Docker Space (FastAPI internal on 8000, Streamlit public on 7860) from `deploy/huggingface/`, on every push to `main` and after each daily run. One-time setup:
+1. Create a Hugging Face access token with write permission.
+2. In the GitHub repo: **Settings → Secrets and variables → Actions**: add secret `HF_TOKEN`, and variable `HF_SPACE_ID` (e.g. `your-hf-username/airquality-paca`). The Space is created automatically on the first deploy.
+3. Run **Actions → Deploy to Hugging Face Spaces → Run workflow** (or wait for the next push).
 
 ## How to Run Locally
 ### Option 1: Using Docker (Recommended)

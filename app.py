@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import os
+import json
 from datetime import datetime
 import plotly.graph_objects as go
 import plotly.express as px
@@ -14,6 +15,10 @@ import numpy as np
 API_BASE = os.getenv("API_BASE", "http://api:8000")
 
 PROCESSED_PATH = "data/processed/df_raw_cleaned.csv"
+LIVE_FORECASTS_PATH = "data/live/forecasts/latest.csv"
+OBSERVATIONS_DIR = "data/live/observations"
+DRIFT_SUMMARY_PATH = "monitoring/drift_summary.json"
+MONITORING_HISTORY_PATH = "monitoring/history.csv"
 
 
 PALETTE = {
@@ -57,6 +62,25 @@ def load_processed(path=PROCESSED_PATH):
         return df.sort_values("date").reset_index(drop=True)
     except Exception:
         return None
+
+@st.cache_data(ttl=600)
+def load_live():
+    """Daily-job outputs: latest forecasts, recent observations, monitoring summary."""
+    fc = pd.read_csv(LIVE_FORECASTS_PATH, parse_dates=["base_time", "forecast_time"], dtype={"code site": str}) \
+        if os.path.exists(LIVE_FORECASTS_PATH) else None
+    obs = None
+    if os.path.isdir(OBSERVATIONS_DIR):
+        parts = sorted(f for f in os.listdir(OBSERVATIONS_DIR) if f.endswith(".csv"))[-4:]
+        frames = [pd.read_csv(os.path.join(OBSERVATIONS_DIR, f), parse_dates=["date"], dtype={"code site": str})
+                  for f in parts]
+        frames = [f for f in frames if len(f)]
+        obs = pd.concat(frames, ignore_index=True) if frames else None
+    summary = None
+    if os.path.exists(DRIFT_SUMMARY_PATH):
+        with open(DRIFT_SUMMARY_PATH, encoding="utf-8") as f:
+            summary = json.load(f)
+    history = pd.read_csv(MONITORING_HISTORY_PATH) if os.path.exists(MONITORING_HISTORY_PATH) else None
+    return fc, obs, summary, history
 
 def call_forecast(payload):
     try:
@@ -175,7 +199,63 @@ with st.sidebar.expander("📈 Data Info", expanded=True):
 
 
 # Tabs
-tab_data, tab_forecast, tab_about = st.tabs(["📊 Data Explorer", "🔮 Forecast + Map", "ℹ️ About"])
+tab_live, tab_data, tab_forecast, tab_about = st.tabs(
+    ["🟢 Live", "📊 Data Explorer", "🔮 Forecast + Map", "ℹ️ About"])
+
+
+# Live tab: outputs of the daily GitHub Actions job
+
+with tab_live:
+    st.header("Live forecasts from Geod'Air")
+    live_fc, live_obs, drift_summary, monitoring_history = load_live()
+
+    if live_fc is None or live_fc.empty:
+        st.info("No live forecasts yet. They are produced daily by the `daily-forecast` workflow.")
+    else:
+        st.caption(f"Issued {live_fc['issued_at'].iloc[0]} UTC from ATMO SUD real-time measurements")
+
+        l1, l2 = st.columns(2)
+        live_pollutants = sorted(live_fc["Polluant"].unique())
+        live_pollutant = l1.selectbox("Pollutant", live_pollutants, key="live_pollutant",
+                                      index=live_pollutants.index(selected_pollutant)
+                                      if selected_pollutant in live_pollutants else 0)
+        live_sites = sorted(live_fc.loc[live_fc["Polluant"] == live_pollutant, "code site"].unique())
+        live_site = l2.selectbox("Site (code)", live_sites, key="live_site")
+
+        series_fc = live_fc[(live_fc["Polluant"] == live_pollutant) & (live_fc["code site"] == live_site)]
+        lfig = go.Figure()
+        if live_obs is not None:
+            series_obs = live_obs[(live_obs["Polluant"] == live_pollutant) & (live_obs["code site"] == live_site)]
+            lfig.add_trace(go.Scatter(x=series_obs["date"], y=series_obs["valeur"], mode="lines",
+                                      name="measured", line=dict(color=PALETTE["line"])))
+        lfig.add_trace(go.Scatter(x=series_fc["forecast_time"], y=series_fc["predicted_valeur"],
+                                  mode="lines+markers", name="forecast", line=dict(color=PALETTE["accent"])))
+        lfig.update_layout(title=f"{live_pollutant} @ {live_site} — measured vs next 24h",
+                           template="plotly_dark", height=420)
+        st.plotly_chart(lfig, use_container_width=True)
+
+    st.subheader("Monitoring")
+    if drift_summary is None:
+        st.info("No monitoring run yet.")
+    else:
+        drift = drift_summary.get("drift") or {}
+        skill = drift_summary.get("skill") or {}
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("Data drift", "⚠️ detected" if drift.get("dataset_drift") else "✅ none")
+        d2.metric("Drifted columns", f"{drift.get('n_drifted', '–')}/{drift.get('n_columns', '–')}")
+        d3.metric("Forecast MAE", skill.get("mae", "–"))
+        d4.metric("Persistence MAE", skill.get("persistence_mae", "–"),
+                  help="Error of simply repeating the last measured value. The model should beat this.")
+        st.caption(f"Window {drift_summary['window']['start']} → {drift_summary['window']['end']} "
+                   "compared with the training data (Evidently).")
+        if drift.get("columns"):
+            st.dataframe(pd.DataFrame(drift["columns"]).T, use_container_width=True)
+        if monitoring_history is not None and len(monitoring_history) > 1:
+            hfig = go.Figure()
+            hfig.add_trace(go.Scatter(x=monitoring_history["run_date"], y=monitoring_history["drift_share"],
+                                      mode="lines+markers", name="drift share", line=dict(color=PALETTE["primary"])))
+            hfig.update_layout(title="Share of drifted columns per daily run", template="plotly_dark", height=300)
+            st.plotly_chart(hfig, use_container_width=True)
 
 
 # Data Explorer tab

@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+filterwarnings = [
+    # the API still uses @app.on_event("startup")
+    "ignore:\\s*on_event is deprecated:DeprecationWarning",
+    # raised inside pandas 2.x datetime arithmetic with numpy >= 2.4
+    "ignore:\\s*The 'generic' unit for NumPy timedelta:DeprecationWarning",
+]

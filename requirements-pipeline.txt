@@ -1,0 +1,5 @@
+# Daily jobs (fetch, forecast, drift monitoring) and tests
+-r requirements-api.txt
+evidently==0.7.21
+pytest
+httpx

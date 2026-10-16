@@ -1,12 +1,5 @@
-fastapi
-uvicorn[standard]
-pandas
-numpy
-scikit-learn
-xgboost
-joblib
-streamlit
-plotly
-requests
+-r requirements-pipeline.txt
+streamlit==1.64.0
+plotly==5.24.1
 dvc[s3]
 mlflow
