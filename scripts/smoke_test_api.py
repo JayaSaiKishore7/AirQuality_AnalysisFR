@@ -4,9 +4,12 @@
 
 Automated tests live in tests/ and run with `pytest`.
 """
-import requests, json, os
+import requests, json, os, sys
 from datetime import datetime
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from airquality.features import history_window  # noqa: E402
 
 API = "http://127.0.0.1:8000"
 
@@ -32,7 +35,9 @@ def test_forecast():
     processed_path = os.path.join("data", "processed", "df_raw_cleaned.csv")
     if os.path.exists(processed_path):
         df = pd.read_csv(processed_path, parse_dates=["date"])
-        row = df.dropna(subset=["lag_1", "lag_24", "rolling_3"]).iloc[-1]
+        row = df.iloc[-1]
+        series = df[(df["code site"] == row["code site"]) & (df["Polluant"] == row["Polluant"])]
+        history = history_window(series.set_index("date")["valeur"])
         payload = {
             "datetime": row["date"].strftime("%Y-%m-%d %H:%M:%S"),
             "Latitude": float(row["Latitude"]),
@@ -42,9 +47,7 @@ def test_forecast():
             "evaluation": row.get("type d'évaluation", ""),
             "implantation": row.get("type d'implantation", ""),
             "site_code": row.get("code site", ""),
-            "lag_1": float(row["lag_1"]),
-            "lag_24": float(row["lag_24"]),
-            "rolling_3": float(row["rolling_3"]),
+            "recent_values": [float(v) for v in history],
         }
     else:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -53,13 +56,11 @@ def test_forecast():
             "Latitude": 43.3,
             "Longitude": 5.37,
             "pollutant": "NO2",
-            "influence": "Trafic routier",
+            "influence": "Trafic",
             "evaluation": "mesures fixes",
-            "implantation": "URBAIN",
+            "implantation": "Urbaine",
             "site_code": "FR02001",
-            "lag_1": 10.0,
-            "lag_24": 9.0,
-            "rolling_3": 9.5,
+            "recent_values": [10.0] * 24,
         }
     print("Payload:", json.dumps(payload, ensure_ascii=False, indent=2))
     try:

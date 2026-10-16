@@ -9,6 +9,7 @@ from xgboost import XGBRegressor
 
 import mlflow
 import mlflow.sklearn
+import mlflow.xgboost
 
 
 def evaluate_model(name, model, X_train, y_train, X_test, y_test):
@@ -30,7 +31,10 @@ def evaluate_model(name, model, X_train, y_train, X_test, y_test):
 
 def main():
 
-    # Enable MLflow experiment grouping
+    # MLflow 3 no longer writes to the ./mlruns file store; use a local SQLite database
+    # unless MLFLOW_TRACKING_URI points elsewhere. View with: mlflow ui --backend-store-uri sqlite:///mlflow.db
+    if not os.getenv("MLFLOW_TRACKING_URI"):
+        mlflow.set_tracking_uri("sqlite:///mlflow.db")
     mlflow.set_experiment("AirQuality_Forecasting")
 
     # 1. Load cleaned data
@@ -62,6 +66,17 @@ def main():
     y_train, y_test = y[:split_idx], y[split_idx:]
 
     print(f"Train size: {X_train.shape}, Test size: {X_test.shape}")
+
+    # Baseline to beat: persistence ("next hour = last measured hour", i.e. lag_1)
+    lag_1_test = df["lag_1"].values[split_idx:]
+    baseline = {
+        "name": "Persistence",
+        "mae": mean_absolute_error(y_test, lag_1_test),
+        "rmse": np.sqrt(mean_squared_error(y_test, lag_1_test)),
+        "r2": r2_score(y_test, lag_1_test),
+    }
+    print(f"\nPersistence baseline: MAE = {baseline['mae']:.4f}, RMSE = {baseline['rmse']:.4f}, "
+          f"R² = {baseline['r2']:.4f}")
 
     # 4. Define models
     # rf = RandomForestRegressor(
@@ -100,8 +115,8 @@ def main():
         mlflow.log_metric("mae", res_rf["mae"])
         mlflow.log_metric("rmse", res_rf["rmse"])
         mlflow.log_metric("r2", res_rf["r2"])
-        # mlflow.sklearn.log_model(res_rf["model"], artifact_path="model")
-        mlflow.sklearn.log_model(res_rf["model"], name="model")
+        # skops (MLflow's default) needs tree types trusted explicitly; safe, we just trained this model
+        mlflow.sklearn.log_model(res_rf["model"], name="model", skops_trusted_types=["sklearn.tree._tree.Tree"])
 
 
         results.append(res_rf)
@@ -114,8 +129,7 @@ def main():
         mlflow.log_metric("mae", res_xgb["mae"])
         mlflow.log_metric("rmse", res_xgb["rmse"])
         mlflow.log_metric("r2", res_xgb["r2"])
-        # mlflow.sklearn.log_model(res_xgb["model"], artifact_path="model")
-        mlflow.sklearn.log_model(res_xgb["model"], name="model")
+        mlflow.xgboost.log_model(res_xgb["model"], name="model")
 
 
         results.append(res_xgb)
@@ -128,7 +142,18 @@ def main():
     os.makedirs("models", exist_ok=True)
     model_path = os.path.join("models", "best_model.pkl")
     joblib.dump(best_model, model_path)
-    print(f"Saved best model to: {model_path}")
+    size_mb = os.path.getsize(model_path) / 1e6
+    print(f"Saved best model to: {model_path} ({size_mb:.1f} MB)")
+    if size_mb > 50:
+        print("WARNING: the model is larger than 50 MB; GitHub rejects files over 100 MB.")
+
+    # 8. Save the comparison (read by notebooks/DeepLearning.ipynb)
+    os.makedirs("reports", exist_ok=True)
+    report_path = os.path.join("reports", "rf_xgb_results.csv")
+    pd.DataFrame(
+        [{"Model": r["name"], "MAE": r["mae"], "RMSE": r["rmse"], "R2": r["r2"]} for r in results + [baseline]]
+    ).to_csv(report_path, index=False)
+    print(f"Saved test-set metrics to: {report_path}")
 
 
 if __name__ == "__main__":

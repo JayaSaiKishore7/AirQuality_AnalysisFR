@@ -4,7 +4,7 @@ import logging
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 # allow `python Api/main.py` as well as `uvicorn Api.main:app`
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -12,11 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uvicorn
 
 from airquality import config
 from airquality.artifacts import load_artifacts
+from airquality.features import HISTORY_HOURS
 from airquality.forecasting import forecast_24h
 
 DATA_PATH = config.PROCESSED_PATH
@@ -53,9 +54,10 @@ class ForecastRequest(BaseModel):
     evaluation: str
     implantation: str
     site_code: str
-    lag_1: float
-    lag_24: float
-    rolling_3: float
+    recent_values: Annotated[List[float], Field(
+        min_length=HISTORY_HOURS, max_length=HISTORY_HOURS,
+        description="Last 24 hourly measurements, oldest first; the last one is at `datetime`.",
+    )]
 
 class ForecastResult(BaseModel):
     forecast_time: str

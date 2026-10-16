@@ -65,7 +65,8 @@ Every push and pull request runs the test suite (`ci.yml`).
 
 - **Target:** hourly concentration per station and pollutant.
 - **Features:** station coordinates and type, pollutant, calendar features (hour, day, month, weekday, weekend),
-  and recent history (value 1 h and 24 h earlier, 3-hour rolling mean).
+  and recent history (value 1 h and 24 h earlier, mean of the previous 3 hours). Every feature uses only
+  data from before the hour being predicted.
 - **Training:** Random Forest and XGBoost compared on a chronological 80/20 split. The model with the lower RMSE
   (XGBoost) is saved to `models/best_model.pkl`. Forecasts are made recursively, one hour at a time.
 - **Data:** ATMO SUD hourly measurements, January–November 2025.
@@ -111,7 +112,7 @@ python scripts/build_site.py       # then open site/index.html
 
 ```bash
 python scripts/preprocess_data.py  # rebuilds data/processed/ from the monthly files in data/raw/
-python scripts/train_model.py      # logs runs to MLflow (mlflow ui)
+python scripts/train_model.py      # logs runs to MLflow: mlflow ui --backend-store-uri sqlite:///mlflow.db
 python scripts/build_reference.py  # refreshes the drift reference
 ```
 

@@ -10,6 +10,7 @@ import plotly.express as px
 import numpy as np
 
 from airquality.artifacts import load_artifacts
+from airquality.features import history_window
 from airquality.forecasting import forecast_24h
 
 
@@ -316,11 +317,17 @@ with tab_forecast:
     if not selected_pollutant or not selected_site:
         st.warning("Select pollutant and site in the sidebar.")
     else:
-        # safe latest row
-        try:
-            latest_row = df[(df["Polluant"] == selected_pollutant) & (df["code site"] == selected_site)].iloc[-1]
-        except Exception:
+        series = df[(df["Polluant"] == selected_pollutant) & (df["code site"] == selected_site)]
+        if series.empty:
+            st.warning("No historical records for that selection; showing the latest record overall.")
             latest_row = df.iloc[-1]
+            history = None
+        else:
+            latest_row = series.iloc[-1]
+            # last 24 hourly values ending at the latest measurement (short gaps interpolated)
+            history = history_window(series.set_index("date")["valeur"])
+            if history is None:
+                st.warning("The last 24 hours of this series have a gap longer than 3 hours, so no forecast can be made.")
 
         payload = {
             "datetime": latest_row["date"].strftime("%Y-%m-%d %H:%M:%S"),
@@ -331,9 +338,7 @@ with tab_forecast:
             "evaluation": selected_evaluation,
             "implantation": selected_implantation,
             "site_code": selected_site,
-            "lag_1": float(latest_row.get("lag_1", 0.0)),
-            "lag_24": float(latest_row.get("lag_24", 0.0)),
-            "rolling_3": float(latest_row.get("rolling_3", 0.0)),
+            "recent_values": [round(float(v), 4) for v in history] if history is not None else None,
         }
 
         with st.expander("Forecast payload (debug)", expanded=False):
@@ -363,7 +368,7 @@ with tab_forecast:
                 st.write("Map could not be rendered:", e)
 
         # Forecast action
-        if st.button("🚀 Generate 24-hour forecast"):
+        if st.button("🚀 Generate 24-hour forecast", disabled=history is None):
             with st.spinner("Generating forecast..."):
                 results = call_forecast(payload, use_api=api_ok)
                 if results:

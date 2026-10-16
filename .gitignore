@@ -18,6 +18,7 @@ monitoring/drift_report.html
 
 # MLflow runs
 mlruns/
+mlflow.db
 
 # Python
 __pycache__/

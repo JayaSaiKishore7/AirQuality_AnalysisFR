@@ -47,7 +47,8 @@ Categories present in the training data (`data/processed/df_raw_cleaned.csv`).
 
 ## POST `/forecast/24h`
 
-Recursive 24-step forecast: each hourly prediction is fed back as the next step's `lag_1`.
+Recursive 24-step forecast. The lag features of each hour (value 1 h and 24 h earlier, mean of
+the previous 3 hours) are read from `recent_values`, extended with the model's own predictions.
 
 Request:
 
@@ -61,9 +62,8 @@ Request:
   "evaluation": "mesures fixes",
   "implantation": "Urbaine",
   "site_code": "FR02008",
-  "lag_1": 20.0,
-  "lag_24": 18.0,
-  "rolling_3": 19.0
+  "recent_values": [18.2, 17.9, 17.5, 16.8, 16.0, 15.9, 16.4, 18.1, 21.3, 24.0, 25.2, 24.8,
+                    23.9, 22.7, 21.5, 20.8, 20.1, 19.6, 19.9, 20.6, 21.2, 20.7, 20.1, 19.8]
 }
 ```
 
@@ -72,8 +72,7 @@ Request:
 | `datetime` | Time of the last known measurement (ISO 8601) |
 | `Latitude`, `Longitude` | Station coordinates |
 | `pollutant`, `influence`, `evaluation`, `implantation`, `site_code` | Categories as in `/meta`. Unknown spellings are matched to the closest known value. |
-| `lag_1`, `lag_24` | Value 1 hour and 24 hours before `datetime` |
-| `rolling_3` | Mean of the last 3 hourly values |
+| `recent_values` | Exactly 24 hourly measurements, oldest first; the last one is the value at `datetime`. Fill short gaps before sending (the dashboard interpolates gaps of up to 3 hours). |
 
 Response: 24 items, one per hour after `datetime`.
 
@@ -84,7 +83,8 @@ Response: 24 items, one per hour after `datetime`.
 ]
 ```
 
-Errors: `422` if a field is missing or has the wrong type, `500` if a category cannot be encoded or the date is invalid.
+Errors: `422` if a field is missing, has the wrong type or `recent_values` does not have 24 values;
+`500` if a category cannot be encoded or the date is invalid.
 
 ## GET `/forecasts/latest`
 

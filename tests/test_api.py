@@ -1,5 +1,6 @@
 """API tests against the real committed model and encoders."""
 import json
+import math
 
 import pandas as pd
 import pytest
@@ -17,9 +18,8 @@ PAYLOAD = {
     "evaluation": "mesures fixes",
     "implantation": "Urbaine",
     "site_code": "FR02008",
-    "lag_1": 20.0,
-    "lag_24": 18.0,
-    "rolling_3": 19.0,
+    # last 24 hourly values ending at `datetime`: a smooth daily cycle around 20 µg/m³
+    "recent_values": [round(20 + 5 * math.sin(2 * math.pi * h / 24), 2) for h in range(24)],
 }
 
 
@@ -72,6 +72,8 @@ def test_forecast_rejects_bad_input(client):
     assert client.post("/forecast/24h", json={**PAYLOAD, "pollutant": "zzz"}).status_code == 500
     assert client.post("/forecast/24h", json={**PAYLOAD, "datetime": "not a date"}).status_code == 500
     assert client.post("/forecast/24h", json={"pollutant": "PM10"}).status_code == 422
+    # exactly 24 hourly values are required
+    assert client.post("/forecast/24h", json={**PAYLOAD, "recent_values": [20.0] * 23}).status_code == 422
 
 
 def test_latest_forecasts(client, tmp_path, monkeypatch):

@@ -1,9 +1,14 @@
 import argparse
 import glob
 import os
+import sys
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 import joblib
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from airquality.features import add_lag_features  # noqa: E402
 
 
 def build_combined_raw(raw_dir, combined_path):
@@ -111,21 +116,18 @@ def preprocess_raw_data(processed_path=os.path.join("data", "processed", "df_raw
         }
     )
 
-    #  Create lag & rolling features (per site+pollutant grouped TS) 
+    # Lag & rolling features per site+pollutant series. Shared with the live pipeline,
+    # and past-only: rolling_3 for hour t is the mean of t-3..t-1, never including t.
+    df = add_lag_features(df)
     df = df.sort_values(["pollutant_encoded", "site_encoded", "date"])
 
-    df["lag_1"] = df.groupby(["pollutant_encoded", "site_encoded"])["valeur"].shift(1)
-    df["lag_24"] = df.groupby(["pollutant_encoded", "site_encoded"])["valeur"].shift(24)
-
-    df["rolling_3"] = (
-        df.groupby(["pollutant_encoded", "site_encoded"])["valeur"]
-        .rolling(3)
-        .mean()
-        .reset_index(level=[0, 1], drop=True)
-    )
-
-    # Remove missing lag rows 
+    # Remove missing lag rows
     df = df.dropna(subset=["lag_1", "lag_24", "rolling_3"]).reset_index(drop=True)
+
+    # Filling the hourly grid made integer columns float; restore them (keeps the CSV small)
+    int_cols = ["hour", "day", "month", "year", "weekday", "weekend", "pollutant_encoded",
+                "influence_encoded", "evaluation_encoded", "implantation_encoded", "site_encoded"]
+    df[int_cols] = df[int_cols].astype(int)
 
     #  Final modeling features 
     final_cols = [

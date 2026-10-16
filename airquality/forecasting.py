@@ -2,11 +2,12 @@
 import difflib
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 
 from airquality import config
 from airquality.artifacts import encode_frame
-from airquality.features import DYNAMIC_COLS, STATIC_COLS, add_lag_features, recursive_forecast, time_features
+from airquality.features import STATIC_COLS, add_lag_features, history_window, recursive_forecast, time_features
 
 SERIES_KEYS = [config.COL_SITE, config.COL_POLLUTANT]
 
@@ -37,9 +38,9 @@ def forecast_24h(model, encoders: dict, req: dict) -> list[dict]:
         "implantation_encoded": encode_value(encoders["implantation"], req["implantation"]),
         "site_encoded": encode_value(encoders["site"], req["site_code"]),
     }])[STATIC_COLS]
-    dynamic = pd.DataFrame([{k: req[k] for k in DYNAMIC_COLS}])
+    history = np.array([req["recent_values"]], dtype=float)
 
-    fc = recursive_forecast(model, pd.Series([start]), static, dynamic)
+    fc = recursive_forecast(model, pd.Series([start]), static, history)
     return [
         {"forecast_time": t.isoformat(), "predicted_valeur": float(y)}
         for t, y in zip(pd.to_datetime(fc["forecast_time"]), fc["predicted_valeur"])
@@ -55,20 +56,31 @@ def build_live_features(obs: pd.DataFrame, encoders: dict, stations: pd.DataFram
 
 
 def latest_states(feats: pd.DataFrame, max_age_hours: int = 48) -> pd.DataFrame:
-    """Most recent complete feature row per series, ignoring series that went quiet."""
-    complete = feats.dropna(subset=DYNAMIC_COLS)
-    if complete.empty:
-        return complete
-    latest = complete.sort_values(config.COL_DATE).groupby(SERIES_KEYS, sort=False).tail(1)
-    cutoff = complete[config.COL_DATE].max() - pd.Timedelta(hours=max_age_hours)
-    return latest[latest[config.COL_DATE] >= cutoff].reset_index(drop=True)
+    """Latest measurement per series plus its 24-hour history (column `history`).
+
+    Series that went quiet (no data in the last `max_age_hours`) or whose last
+    24 hours have a gap longer than 3 hours are skipped.
+    """
+    if feats.empty:
+        return feats.assign(history=None)
+    cutoff = feats[config.COL_DATE].max() - pd.Timedelta(hours=max_age_hours)
+    rows = []
+    for _, g in feats.sort_values(config.COL_DATE).groupby(SERIES_KEYS, sort=False):
+        last = g.iloc[-1]
+        if last[config.COL_DATE] < cutoff:
+            continue
+        history = history_window(g.set_index(config.COL_DATE)[config.COL_VALUE])
+        if history is not None:
+            rows.append({**last.to_dict(), "history": history})
+    return pd.DataFrame(rows, columns=list(feats.columns) + ["history"])
 
 
 def forecast_all(model, states: pd.DataFrame, issued_at: pd.Timestamp) -> pd.DataFrame:
     if states.empty:
         return pd.DataFrame(columns=["issued_at", config.COL_SITE, config.COL_POLLUTANT, "base_time",
                                      "horizon_h", "forecast_time", "predicted_valeur", "last_valeur"])
-    fc = recursive_forecast(model, states[config.COL_DATE], states[STATIC_COLS], states[DYNAMIC_COLS])
+    states = states.reset_index(drop=True)
+    fc = recursive_forecast(model, states[config.COL_DATE], states[STATIC_COLS], np.vstack(states["history"]))
     meta = states[[config.COL_SITE, config.COL_POLLUTANT, config.COL_DATE, config.COL_VALUE]].rename(
         columns={config.COL_DATE: "base_time", config.COL_VALUE: "last_valeur"})
     out = fc.merge(meta, left_on="series", right_index=True).drop(columns="series")
