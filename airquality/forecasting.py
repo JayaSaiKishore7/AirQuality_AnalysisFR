@@ -1,4 +1,7 @@
-"""Batch 24h forecasts for every station/pollutant with recent live data."""
+"""24h forecasts: one request (API / dashboard) or every station with recent live data (daily job)."""
+import difflib
+from datetime import datetime
+
 import pandas as pd
 
 from airquality import config
@@ -6,6 +9,41 @@ from airquality.artifacts import encode_frame
 from airquality.features import DYNAMIC_COLS, STATIC_COLS, add_lag_features, recursive_forecast, time_features
 
 SERIES_KEYS = [config.COL_SITE, config.COL_POLLUTANT]
+
+
+def encode_value(le, value: str) -> int:
+    """Encode one category, falling back to the closest known spelling."""
+    try:
+        return int(le.transform([value])[0])
+    except Exception:
+        close = difflib.get_close_matches(value, le.classes_, n=1)
+        if close:
+            return int(le.transform([close[0]])[0])
+        raise ValueError(f"Invalid value: {value}")
+
+
+def forecast_24h(model, encoders: dict, req: dict) -> list[dict]:
+    """24h forecast for one series, from the /forecast/24h request fields.
+
+    Shared by the API and the dashboard (which calls it directly when no API is running).
+    """
+    start = datetime.fromisoformat(req["datetime"])
+    static = pd.DataFrame([{
+        "Latitude": req["Latitude"],
+        "Longitude": req["Longitude"],
+        "pollutant_encoded": encode_value(encoders["pollutant"], req["pollutant"]),
+        "influence_encoded": encode_value(encoders["influence"], req["influence"]),
+        "evaluation_encoded": encode_value(encoders["evaluation"], req["evaluation"]),
+        "implantation_encoded": encode_value(encoders["implantation"], req["implantation"]),
+        "site_encoded": encode_value(encoders["site"], req["site_code"]),
+    }])[STATIC_COLS]
+    dynamic = pd.DataFrame([{k: req[k] for k in DYNAMIC_COLS}])
+
+    fc = recursive_forecast(model, pd.Series([start]), static, dynamic)
+    return [
+        {"forecast_time": t.isoformat(), "predicted_valeur": float(y)}
+        for t, y in zip(pd.to_datetime(fc["forecast_time"]), fc["predicted_valeur"])
+    ]
 
 
 def build_live_features(obs: pd.DataFrame, encoders: dict, stations: pd.DataFrame) -> pd.DataFrame:

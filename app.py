@@ -9,6 +9,9 @@ import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
 
+from airquality.artifacts import load_artifacts
+from airquality.forecasting import forecast_24h
+
 
 # Config
 # API_BASE = "http://127.0.0.1:8000"
@@ -53,12 +56,18 @@ def load_meta_from_api():
     except Exception:
         return None
 
+# Only the columns the dashboard uses; repeated text stored as categories.
+# Cuts memory from ~310 MB to ~45 MB, which matters on free hosting (~1 GB limit).
+PROCESSED_COLUMNS = ["date", "valeur", "Latitude", "Longitude", "lag_1", "lag_24", "rolling_3"]
+CATEGORY_COLUMNS = ["Polluant", "code site", "type d'influence", "type d'évaluation", "type d'implantation"]
+
 @st.cache_data(ttl=600)
 def load_processed(path=PROCESSED_PATH):
     if not os.path.exists(path):
         return None
     try:
-        df = pd.read_csv(path, parse_dates=["date"])
+        df = pd.read_csv(path, usecols=PROCESSED_COLUMNS + CATEGORY_COLUMNS, parse_dates=["date"],
+                         dtype={c: "category" for c in CATEGORY_COLUMNS})
         return df.sort_values("date").reset_index(drop=True)
     except Exception:
         return None
@@ -82,11 +91,19 @@ def load_live():
     history = pd.read_csv(MONITORING_HISTORY_PATH) if os.path.exists(MONITORING_HISTORY_PATH) else None
     return fc, obs, summary, history
 
-def call_forecast(payload):
+@st.cache_resource
+def load_model_and_encoders():
+    return load_artifacts()
+
+def call_forecast(payload, use_api):
+    """Use the FastAPI backend when it is running (Docker); otherwise run the model in this app."""
     try:
-        r = requests.post(f"{API_BASE}/forecast/24h", json=payload, timeout=30)
-        r.raise_for_status()
-        return r.json()
+        if use_api:
+            r = requests.post(f"{API_BASE}/forecast/24h", json=payload, timeout=30)
+            r.raise_for_status()
+            return r.json()
+        model, encoders = load_model_and_encoders()
+        return forecast_24h(model, encoders, payload)
     except Exception as e:
         st.error(f"Forecast request failed: {e}")
         return None
@@ -143,10 +160,9 @@ with st.sidebar:
     if api_ok:
         st.success("FastAPI reachable ✅")
     else:
-        st.error("FastAPI not reachable ❌")
-        st.caption("Start FastAPI: `uvicorn Api.main:app --host 127.0.0.1 --port 8000`")
+        st.info("Standalone mode: forecasts run inside this app (no FastAPI backend).")
 
-    if st.button("🔁 Test API /meta"):
+    if api_ok and st.button("🔁 Test API /meta"):
         meta_test = load_meta_from_api()
         if meta_test:
             st.success("✅ /meta loaded")
@@ -296,9 +312,7 @@ with tab_data:
 with tab_forecast:
     st.header("24-Hour Forecast")
 
-    if not api_ok:
-        st.error("FastAPI is not reachable. Start the API and try again.")
-    elif not selected_pollutant or not selected_site:
+    if not selected_pollutant or not selected_site:
         st.warning("Select pollutant and site in the sidebar.")
     else:
         # safe latest row
@@ -349,8 +363,8 @@ with tab_forecast:
 
         # Forecast action
         if st.button("🚀 Generate 24-hour forecast"):
-            with st.spinner("Contacting API and generating forecast..."):
-                results = call_forecast(payload)
+            with st.spinner("Generating forecast..."):
+                results = call_forecast(payload, use_api=api_ok)
                 if results:
                     st.session_state["forecast_data"] = results
                     df_fore = pd.DataFrame(results)

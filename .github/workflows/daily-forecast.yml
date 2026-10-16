@@ -86,8 +86,5 @@ jobs:
           else
             gh issue create --title "Data drift detected" --label data-drift --body "$body"
           fi
-
-  deploy:
-    needs: update
-    uses: ./.github/workflows/deploy-hf.yml
-    secrets: inherit
+# No deploy step: Streamlit Community Cloud redeploys the dashboard on every push to main,
+# including the commit above.

@@ -1,12 +1,10 @@
 # Api/main.py
 import json
 import logging
-import difflib
 import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
-from datetime import datetime
 
 # allow `python Api/main.py` as well as `uvicorn Api.main:app`
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -19,7 +17,7 @@ import uvicorn
 
 from airquality import config
 from airquality.artifacts import load_artifacts
-from airquality.features import DYNAMIC_COLS, STATIC_COLS, recursive_forecast
+from airquality.forecasting import forecast_24h
 
 DATA_PATH = config.PROCESSED_PATH
 
@@ -37,15 +35,6 @@ app.add_middleware(
 
 model = None
 encoders = {}
-
-def encode(le, value: str) -> int:
-    try:
-        return int(le.transform([value])[0])
-    except Exception:
-        close = difflib.get_close_matches(value, le.classes_, n=1)
-        if close:
-            return int(le.transform([close[0]])[0])
-        raise ValueError(f"Invalid value: {value}")
 
 @app.on_event("startup")
 def load_artifacts_on_startup():
@@ -118,29 +107,7 @@ def meta():
 @app.post("/forecast/24h", response_model=List[ForecastResult])
 def forecast(req: ForecastRequest):
     try:
-        start = datetime.fromisoformat(req.datetime)
-
-        static = pd.DataFrame([{
-            "Latitude": req.Latitude,
-            "Longitude": req.Longitude,
-            "pollutant_encoded": encode(encoders["pollutant"], req.pollutant),
-            "influence_encoded": encode(encoders["influence"], req.influence),
-            "evaluation_encoded": encode(encoders["evaluation"], req.evaluation),
-            "implantation_encoded": encode(encoders["implantation"], req.implantation),
-            "site_encoded": encode(encoders["site"], req.site_code),
-        }])[STATIC_COLS]
-        dynamic = pd.DataFrame([{
-            "lag_1": req.lag_1,
-            "lag_24": req.lag_24,
-            "rolling_3": req.rolling_3,
-        }])[DYNAMIC_COLS]
-
-        fc = recursive_forecast(model, pd.Series([start]), static, dynamic)
-
-        return [
-            ForecastResult(forecast_time=t.isoformat(), predicted_valeur=float(y))
-            for t, y in zip(pd.to_datetime(fc["forecast_time"]), fc["predicted_valeur"])
-        ]
+        return forecast_24h(model, encoders, req.model_dump())
 
     except Exception as e:
         log.exception("Forecast failed")

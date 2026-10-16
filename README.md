@@ -139,12 +139,14 @@ AirQuality_AnalysisFR/
 │
 ├── tests/                     # pytest suite
 ├── monitoring/                # Drift summaries (updated daily)
-├── deploy/huggingface/        # Hugging Face Space Dockerfile + start script
 ├── .github/workflows/         # CI, daily forecast cron, HF deploy
 │
 ├── app.py                     # Streamlit dashboard
 ├── test_api.py                # API test script
-├── requirements.txt           # Python dependencies
+├── requirements.txt           # Dashboard dependencies (used by Streamlit Community Cloud)
+├── requirements-api.txt       # FastAPI backend
+├── requirements-pipeline.txt  # Daily jobs + tests
+├── requirements-train.txt     # Everything, incl. DVC and MLflow for retraining
 ├── environment.yml            # Conda environment
 ├── Dockerfile.api             # FastAPI Dockerfile
 ├── Dockerfile.streamlit       # Streamlit Dockerfile
@@ -251,7 +253,7 @@ A GitHub Actions cron job (`.github/workflows/daily-forecast.yml`, 04:30 UTC) ke
 Geod'Air (data.gouv.fr)  ──►  fetch_geodair.py   data/live/observations/YYYY-MM-DD.csv  (ATMO SUD, 90-day window)
                          ──►  make_forecasts.py  data/live/forecasts/latest.csv + daily archive
                          ──►  monitor_drift.py   monitoring/drift_summary.json, history.csv, Evidently HTML report
-                         ──►  commit to main ──► redeploy Hugging Face Space
+                         ──►  commit to main ──► Streamlit Community Cloud redeploys the dashboard
 ```
 
 - **Data source**: the LCSQA/INERIS real-time hourly files
@@ -275,11 +277,15 @@ After retraining, rebuild the reference files with `python scripts/build_referen
 ### Tests and CI
 `pytest` runs the suite in `tests/` (features, Geod'Air parsing, batch forecasting, drift, API with the real model). `.github/workflows/ci.yml` runs it on every push and pull request.
 
-### Deployment (Hugging Face Spaces, free CPU tier)
-`.github/workflows/deploy-hf.yml` builds a single Docker Space (FastAPI internal on 8000, Streamlit public on 7860) from `deploy/huggingface/`, on every push to `main` and after each daily run. One-time setup:
-1. Create a Hugging Face access token with write permission.
-2. In the GitHub repo: **Settings → Secrets and variables → Actions**: add secret `HF_TOKEN`, and variable `HF_SPACE_ID` (e.g. `your-hf-username/airquality-paca`). The Space is created automatically on the first deploy.
-3. Run **Actions → Deploy to Hugging Face Spaces → Run workflow** (or wait for the next push).
+### Deployment (Streamlit Community Cloud, free)
+The dashboard is hosted on Streamlit Community Cloud straight from this repository. Without a FastAPI backend it runs in
+standalone mode: forecasts are computed inside the app with the same code the API uses. Community Cloud redeploys on
+every push to `main`, so the daily job's commit also refreshes the live forecasts online. One-time setup:
+1. Sign in at [share.streamlit.io](https://share.streamlit.io) with GitHub.
+2. **Create app → Deploy a public app from GitHub**: repository `JayaSaiKishore7/AirQuality_AnalysisFR`, branch `main`, main file `app.py`.
+3. Under **Advanced settings**, choose Python 3.10 and deploy.
+
+The FastAPI backend is not hosted; run it locally with `docker compose up`.
 
 ## How to Run Locally
 ### Option 1: Using Docker (Recommended)
