@@ -8,21 +8,25 @@ from datetime import datetime
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
+import sys
 
-from airquality.artifacts import load_artifacts
-from airquality.features import history_window
-from airquality.forecasting import forecast_24h
+# Find the project package and data next to this file, whatever folder the app is started from
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from airquality import config  # noqa: E402
+from airquality.artifacts import load_artifacts  # noqa: E402
+from airquality.features import history_window  # noqa: E402
+from airquality.forecasting import forecast_24h  # noqa: E402
 
 
 # Config
-# API_BASE = "http://127.0.0.1:8000"
 API_BASE = os.getenv("API_BASE", "http://api:8000")
 
-PROCESSED_PATH = "data/processed/df_raw_cleaned.csv"
-LIVE_FORECASTS_PATH = "data/live/forecasts/latest.csv"
-OBSERVATIONS_DIR = "data/live/observations"
-DRIFT_SUMMARY_PATH = "monitoring/drift_summary.json"
-MONITORING_HISTORY_PATH = "monitoring/history.csv"
+PROCESSED_PATH = str(config.PROCESSED_PATH)
+LIVE_FORECASTS_PATH = str(config.FORECASTS_DIR / "latest.csv")
+OBSERVATIONS_DIR = str(config.OBSERVATIONS_DIR)
+DRIFT_SUMMARY_PATH = str(config.MONITORING_DIR / "drift_summary.json")
+MONITORING_HISTORY_PATH = str(config.MONITORING_DIR / "history.csv")
 
 
 PALETTE = {
@@ -72,6 +76,15 @@ def load_processed(path=PROCESSED_PATH):
         return df.sort_values("date").reset_index(drop=True)
     except Exception:
         return None
+
+@st.cache_data(ttl=600)
+def forecastable_sites(_df):
+    """(pollutant, site) pairs whose last 24 hours are complete enough to forecast from."""
+    return {
+        (str(p), str(s))
+        for (p, s), g in _df.groupby(["Polluant", "code site"], observed=True)
+        if history_window(g.set_index("date")["valeur"]) is not None
+    }
 
 @st.cache_data(ttl=600)
 def load_live():
@@ -185,29 +198,31 @@ if df is None:
     st.stop()
 
 meta = st.session_state.get("meta_cached") or load_meta_from_api()
-if meta is None:
-    pollutants = sorted(df["Polluant"].dropna().unique().tolist()) if "Polluant" in df.columns else []
-    sites = sorted(df["code site"].dropna().unique().tolist())[:500] if "code site" in df.columns else []
-    influences = sorted(df["type d'influence"].dropna().unique().tolist()) if "type d'influence" in df.columns else []
-    evaluations = sorted(df["type d'évaluation"].dropna().unique().tolist()) if "type d'évaluation" in df.columns else []
-    implantations = sorted(df["type d'implantation"].dropna().unique().tolist()) if "type d'implantation" in df.columns else []
-else:
-    pollutants = meta.get("pollutants", [])
-    sites = meta.get("sites_sample", [])
-    influences = meta.get("influences", [])
-    evaluations = meta.get("evaluations", [])
-    implantations = meta.get("implantations", [])
+pollutants = meta.get("pollutants", []) if meta else sorted(df["Polluant"].dropna().astype(str).unique())
 
 
 # Sidebar filters
 
 st.sidebar.subheader("Filters")
-selected_pollutant = st.sidebar.selectbox("Pollutant", options=pollutants, index=0 if pollutants else None)
-selected_site = st.sidebar.selectbox("Site (code)", options=sites[:200], index=0 if sites else None)
-selected_influence = st.sidebar.selectbox("Influence", options=influences or ["Trafic routier"], index=0)
-selected_evaluation = st.sidebar.selectbox("Evaluation", options=evaluations or ["Réglementaire"], index=0)
-selected_implantation = st.sidebar.selectbox("Implantation", options=implantations or ["URBAIN"], index=0)
-## selected_implantation = st.sidebar.selectbox("Implantation", options=implantations or ["URBAIN"], index=1)
+selected_pollutant = st.sidebar.selectbox(
+    "Pollutant", options=pollutants, index=pollutants.index("NO2") if "NO2" in pollutants else 0)
+
+# Only stations that measure this pollutant; default to one with enough recent data to forecast
+forecastable = forecastable_sites(df)
+pollutant_sites = sorted(df.loc[df["Polluant"] == selected_pollutant, "code site"].astype(str).unique())
+ready = [s for s in pollutant_sites if (selected_pollutant, s) in forecastable]
+selected_site = st.sidebar.selectbox(
+    "Site (code)", options=pollutant_sites,
+    index=pollutant_sites.index(ready[0]) if ready else 0,
+    format_func=lambda s: s if (selected_pollutant, s) in forecastable else f"{s} (not enough recent data)")
+
+# Influence, evaluation and implantation describe the station itself, so read them from its data
+station_rows = df[(df["Polluant"] == selected_pollutant) & (df["code site"] == selected_site)]
+station = station_rows.iloc[-1] if len(station_rows) else None
+selected_influence = str(station["type d'influence"]) if station is not None else ""
+selected_evaluation = str(station["type d'évaluation"]) if station is not None else ""
+selected_implantation = str(station["type d'implantation"]) if station is not None else ""
+st.sidebar.caption(f"Station type: {selected_influence} · {selected_evaluation} · {selected_implantation}")
 
 with st.sidebar.expander("📈 Data Info", expanded=True):
     st.write(f"Total records: **{len(df):,}**")
