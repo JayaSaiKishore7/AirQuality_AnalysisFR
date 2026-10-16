@@ -1,4 +1,6 @@
 import os
+import pickle
+import sys
 import joblib
 import numpy as np
 import pandas as pd
@@ -11,22 +13,43 @@ import mlflow
 import mlflow.sklearn
 import mlflow.xgboost
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def evaluate_model(name, model, X_train, y_train, X_test, y_test):
-    """Fit model and compute metrics"""
+from airquality.model import POLLUTANT_COL, PollutantScaledModel, fit_scales  # noqa: E402
+
+MAX_MODEL_MB = 50
+
+
+def mae_by_pollutant(y_true, y_pred, pollutants):
+    return (pd.DataFrame({"err": np.abs(y_true - y_pred), "p": pollutants})
+            .groupby("p")["err"].mean().to_dict())
+
+
+def evaluate_model(name, model, X_train, y_train, X_test, y_test, pollutants_test):
+    """Fit model and compute metrics (overall and per pollutant)"""
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
     mae = mean_absolute_error(y_test, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
     r2 = r2_score(y_test, y_pred)
+    per_pollutant = mae_by_pollutant(y_test, y_pred, pollutants_test)
 
     print(f"\n{name} Performance:")
     print(f"  MAE  = {mae:.4f}")
     print(f"  RMSE = {rmse:.4f}")
     print(f"  R²   = {r2:.4f}")
+    print("  MAE per pollutant: " + ", ".join(f"{p} {v:.3f}" for p, v in per_pollutant.items()))
 
-    return {"name": name, "model": model, "mae": mae, "rmse": rmse, "r2": r2}
+    return {"name": name, "model": model, "mae": mae, "rmse": rmse, "r2": r2, "mae_by_pollutant": per_pollutant}
+
+
+def log_metrics(res):
+    mlflow.log_metric("mae", res["mae"])
+    mlflow.log_metric("rmse", res["rmse"])
+    mlflow.log_metric("r2", res["r2"])
+    for p, v in res["mae_by_pollutant"].items():
+        mlflow.log_metric(f"mae_{p.replace('.', '_')}", v)
 
 
 def main():
@@ -77,24 +100,24 @@ def main():
     }
     print(f"\nPersistence baseline: MAE = {baseline['mae']:.4f}, RMSE = {baseline['rmse']:.4f}, "
           f"R² = {baseline['r2']:.4f}")
+    pollutants_test = df["Polluant"].values[split_idx:]
+    baseline["mae_by_pollutant"] = mae_by_pollutant(y_test, lag_1_test, pollutants_test)
+    print("  MAE per pollutant: " + ", ".join(f"{p} {v:.3f}" for p, v in baseline["mae_by_pollutant"].items()))
 
-    # 4. Define models
-    # rf = RandomForestRegressor(
-    #     n_estimators=300,
-    #     random_state=42,
-    #     n_jobs=-1
-    # )
+    # 4. Per-pollutant scales (median level, training split only) so CO counts as much as NO2
+    scales = fit_scales(X_train[:, POLLUTANT_COL], y_train)
+    print(f"\nPollutant scales (median of training target): {scales}")
 
-    rf = RandomForestRegressor(
-    n_estimators=100,
-    max_depth=20,
-    min_samples_leaf=10,
-    random_state=42,
-    n_jobs=2
-   )
+    # 5. Define models
+    rf = PollutantScaledModel(RandomForestRegressor(
+        n_estimators=100,
+        max_depth=20,
+        min_samples_leaf=10,
+        random_state=42,
+        n_jobs=2,
+    ), scales)
 
-
-    xgb = XGBRegressor(
+    xgb = PollutantScaledModel(XGBRegressor(
         n_estimators=300,
         learning_rate=0.05,
         max_depth=8,
@@ -103,51 +126,51 @@ def main():
         random_state=42,
         objective="reg:squarederror",
         n_jobs=-1,
-    )
+    ), scales)
 
     results = []
 
-    # 5. RandomForest with MLflow logging
+    # 6. RandomForest with MLflow logging
     with mlflow.start_run(run_name="RandomForest"):
-        res_rf = evaluate_model("RandomForest", rf, X_train, y_train, X_test, y_test)
+        res_rf = evaluate_model("RandomForest", rf, X_train, y_train, X_test, y_test, pollutants_test)
 
-        mlflow.log_param("model", "RandomForest")
-        mlflow.log_metric("mae", res_rf["mae"])
-        mlflow.log_metric("rmse", res_rf["rmse"])
-        mlflow.log_metric("r2", res_rf["r2"])
+        mlflow.log_params({"model": "RandomForest", "target_scaling": "per-pollutant median"})
+        log_metrics(res_rf)
+        mlflow.log_dict(scales, "pollutant_scales.json")
         # skops (MLflow's default) needs tree types trusted explicitly; safe, we just trained this model
-        mlflow.sklearn.log_model(res_rf["model"], name="model", skops_trusted_types=["sklearn.tree._tree.Tree"])
-
+        mlflow.sklearn.log_model(res_rf["model"].estimator, name="model",
+                                 skops_trusted_types=["sklearn.tree._tree.Tree"])
 
         results.append(res_rf)
 
-    # 6. XGBoost with MLflow logging
+    # 7. XGBoost with MLflow logging
     with mlflow.start_run(run_name="XGBoost"):
-        res_xgb = evaluate_model("XGBoost", xgb, X_train, y_train, X_test, y_test)
+        res_xgb = evaluate_model("XGBoost", xgb, X_train, y_train, X_test, y_test, pollutants_test)
 
-        mlflow.log_param("model", "XGBoost")
-        mlflow.log_metric("mae", res_xgb["mae"])
-        mlflow.log_metric("rmse", res_xgb["rmse"])
-        mlflow.log_metric("r2", res_xgb["r2"])
-        mlflow.xgboost.log_model(res_xgb["model"], name="model")
-
+        mlflow.log_params({"model": "XGBoost", "target_scaling": "per-pollutant median"})
+        log_metrics(res_xgb)
+        mlflow.log_dict(scales, "pollutant_scales.json")
+        mlflow.xgboost.log_model(res_xgb["model"].estimator, name="model")
 
         results.append(res_xgb)
 
-    # 7. Pick & save best model
-    best = min(results, key=lambda r: r["rmse"])
-    best_model = best["model"]
-    print(f"\n Best model: {best['name']} (RMSE = {best['rmse']:.4f})")
+    # 8. Pick & save the best model that can be deployed. The model file is committed
+    # to Git (GitHub rejects files over 100 MB); a deep Random Forest easily exceeds that.
+    for r in results:
+        r["size_mb"] = len(pickle.dumps(r["model"])) / 1e6
+        print(f"{r['name']}: {r['size_mb']:.1f} MB")
+    deployable = [r for r in results if r["size_mb"] <= MAX_MODEL_MB]
+    if not deployable:
+        sys.exit(f"No model is under {MAX_MODEL_MB} MB; nothing saved.")
+    best = min(deployable, key=lambda r: r["rmse"])
+    print(f"\n Best deployable model: {best['name']} (RMSE = {best['rmse']:.4f}, {best['size_mb']:.1f} MB)")
 
     os.makedirs("models", exist_ok=True)
     model_path = os.path.join("models", "best_model.pkl")
-    joblib.dump(best_model, model_path)
-    size_mb = os.path.getsize(model_path) / 1e6
-    print(f"Saved best model to: {model_path} ({size_mb:.1f} MB)")
-    if size_mb > 50:
-        print("WARNING: the model is larger than 50 MB; GitHub rejects files over 100 MB.")
+    joblib.dump(best["model"], model_path)
+    print(f"Saved best model to: {model_path}")
 
-    # 8. Save the comparison (read by notebooks/DeepLearning.ipynb)
+    # 9. Save the comparison (read by notebooks/DeepLearning.ipynb)
     os.makedirs("reports", exist_ok=True)
     report_path = os.path.join("reports", "rf_xgb_results.csv")
     pd.DataFrame(

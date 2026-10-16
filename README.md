@@ -11,7 +11,7 @@ stations in the Provence-Alpes-Côte d'Azur (PACA) region, refreshed every day f
 
 **▶ [Open the live demo](https://huggingface.co/spaces/JayaSaiKishore/airquality-paca)**
 
-![Live forecast page: station map and key figures](images/live-forecast-page.png)
+![Live forecast page on Hugging Face: station map and measured vs. forecast chart](images/live-forecast-page1.png)
 
 ## What it does
 
@@ -67,15 +67,48 @@ Every push and pull request runs the test suite (`ci.yml`).
 - **Features:** station coordinates and type, pollutant, calendar features (hour, day, month, weekday, weekend),
   and recent history (value 1 h and 24 h earlier, mean of the previous 3 hours). Every feature uses only
   data from before the hour being predicted.
-- **Training:** Random Forest and XGBoost compared on a chronological 80/20 split. The model with the lower RMSE
-  (XGBoost) is saved to `models/best_model.pkl`. Forecasts are made recursively, one hour at a time.
+- **Per-pollutant scaling:** concentrations differ ~100× between pollutants (CO ≈ 0.2 mg/m³, O₃ ≈ 70 µg/m³).
+  The target and history features are divided by each pollutant's median training level, so the model weighs
+  every pollutant equally; predictions are converted back to real units.
+- **Training:** Random Forest and XGBoost compared on a chronological 80/20 split. The best model by RMSE that is
+  small enough to deploy is saved (XGBoost, 4.8 MB; the Random Forest scores slightly better but is 278 MB).
+  Forecasts are made recursively, one hour at a time, for 24 hours.
 - **Data:** ATMO SUD hourly measurements, January–November 2025.
 
-**Known limitations, being worked on:**
-- The 3-hour rolling-mean feature includes the hour being predicted, which leaks the target during training.
-  A fix and retraining are in progress, so no accuracy figures are published yet.
+### Results
+
+Baseline: **persistence**, which repeats the last measured value. A useful model has to beat it.
+
+**1 hour ahead**, held-out test set (14 Sep – 19 Nov 2025, 135,432 hourly values):
+
+| Model | MAE | RMSE | R² |
+|---|---|---|---|
+| **XGBoost (deployed)** | **3.69** | **6.45** | **0.931** |
+| Random Forest | 3.66 | 6.36 | 0.933 |
+| Persistence baseline | 3.99 | 7.20 | 0.915 |
+
+**24 hours ahead**, live Geod'Air data (three forecasts issued 12–14 Oct 2026, 6,318 hourly values), mean absolute error:
+
+| Pollutant | XGBoost | Persistence | Improvement |
+|---|---|---|---|
+| O₃ (µg/m³) | 14.4 | 25.2 | 43% |
+| NO₂ (µg/m³) | 7.4 | 10.7 | 30% |
+| PM10 (µg/m³) | 4.9 | 6.3 | 23% |
+| CO (mg/m³) | 0.051 | 0.057 | 12% |
+| PM2.5 (µg/m³) | 3.1 | 3.1 | no gain (−1%) |
+
+The live comparison covers only three days so far; the daily pipeline keeps scoring every forecast against the
+measurements and publishes the running error on the live page.
+
+**Known limitations:**
+- PM2.5 forecasts are no better than persistence yet.
 - Live data is raw (unvalidated) while the training data is validated, which is one reason drift is detected.
 - Only stations seen during training can be forecast.
+
+An earlier version leaked the target: the 3-hour mean included the hour being predicted. Fixing it lowered the
+1-hour test score (MAE 3.42, inflated by the leak, → 3.69), but training and forecasting now see the same inputs:
+before the fix, a 24-hour backtest beat persistence by only 5–14%. A test in `tests/test_features.py` guards
+against the leak coming back.
 
 ## Quick start
 
@@ -147,9 +180,11 @@ python scripts/build_reference.py  # refreshes the drift reference
 
 ## Screenshots
 
-| Measured vs. forecast (live page) | Local Streamlit dashboard |
+Local Streamlit dashboard:
+
+| Historical data explorer | 24-hour forecast |
 |---|---|
-| ![Measured vs forecast chart](images/live-forecast-chart.png) | ![Streamlit 24h forecast](images/dashboard-forecast-o3.png) |
+| ![Streamlit data explorer](images/dashboard-history-pm10.png) | ![Streamlit 24h forecast](images/dashboard-forecast-o3.png) |
 
 ## License
 
