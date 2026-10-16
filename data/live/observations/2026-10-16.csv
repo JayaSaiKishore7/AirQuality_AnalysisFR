@@ -1,1 +1,117 @@
 date,valeur,Polluant,code site,nom site,type d'influence,type d'évaluation,type d'implantation,unité de mesure,type de valeur
+2026-10-16,5.3,O3,FR02001,Berre l'Etang,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.1,SO2,FR02004,Martigues P. Central,Industrielle,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,28.8,O3,FR02004,Martigues P. Central,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.2,SO2,FR02006,Martigues Laurons,Industrielle,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,-0.5,SO2,FR02008,Port de Bouc Leque,Industrielle,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.19,CO,FR02008,Port de Bouc Leque,Industrielle,mesures indicatives,Urbaine,mg-m3,moyenne horaire brute
+2026-10-16,-0.3,SO2,FR02013,Fos Les Carabins,Industrielle,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,55.1,O3,FR02021,Sausset les Pins,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.5,NO,FR02022,Arles,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,5.2,NO2,FR02022,Arles,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,28.1,O3,FR02022,Arles,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,6.0,NOX as NO2,FR02022,Arles,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,11.3,PM10,FR02022,Arles,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,10.5,PM2.5,FR02022,Arles,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,2.2,SO2,FR02028,Martigues Lavera,Industrielle,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,1.2,NO,FR02041,SALON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,11.2,NO2,FR02041,SALON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,5.7,O3,FR02041,SALON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,13.1,NOX as NO2,FR02041,SALON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,11.4,PM10,FR02041,SALON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,9.8,PM2.5,FR02041,SALON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.7,NO,FR02043,Marignane,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,18.7,NO2,FR02043,Marignane,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,19.8,NOX as NO2,FR02043,Marignane,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,16.6,PM10,FR02043,Marignane,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,10.3,PM2.5,FR02043,Marignane,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,1.8,NO,FR03014,MARSEILLE ST LOUIS,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,26.4,NO2,FR03014,MARSEILLE ST LOUIS,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,29.1,NOX as NO2,FR03014,MARSEILLE ST LOUIS,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,13.8,PM10,FR03014,MARSEILLE ST LOUIS,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,8.2,PM2.5,FR03014,MARSEILLE ST LOUIS,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,3.2,NO,FR03021,AIX ROY RENE,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,7.3,NO2,FR03021,AIX ROY RENE,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,12.2,NOX as NO2,FR03021,AIX ROY RENE,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,48.0,O3,FR03027,PLAN AUPS/STE  BAUME,Fond,mesures fixes,Rurale près des villes,µg-m3,moyenne horaire brute
+2026-10-16,6.1,PM10,FR03027,PLAN AUPS/STE  BAUME,Fond,mesures fixes,Rurale près des villes,µg-m3,moyenne horaire brute
+2026-10-16,4.5,PM2.5,FR03027,PLAN AUPS/STE  BAUME,Fond,mesures fixes,Rurale près des villes,µg-m3,moyenne horaire brute
+2026-10-16,1.6,NO,FR03029,AIX CENTRE ECOLE ART,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,10.9,NO2,FR03029,AIX CENTRE ECOLE ART,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,13.4,NOX as NO2,FR03029,AIX CENTRE ECOLE ART,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,12.1,PM10,FR03029,AIX CENTRE ECOLE ART,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,10.1,PM2.5,FR03029,AIX CENTRE ECOLE ART,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,3.9,O3,FR03037,VALLEE HUVEAUNE,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.48,C6H6,FR03037,VALLEE HUVEAUNE,Industrielle,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.7,SO2,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,-0.1,NO,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,21.8,NO2,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.211,CO,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,mg-m3,moyenne horaire brute
+2026-10-16,23.3,O3,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,21.7,NOX as NO2,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,19.8,PM10,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,10.1,PM2.5,FR03043,MARSEILLE 5 AVENUES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,10.9,NO,FR03044,MARSEILLE PLOMBIERES 2,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,33.2,NO2,FR03044,MARSEILLE PLOMBIERES 2,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,49.8,NOX as NO2,FR03044,MARSEILLE PLOMBIERES 2,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,1.7,O3,FR03048,AIX PLATANES,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,11.4,O3,FR03064,LA VALETTE/LA GARDE,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,1.6,NO,FR03068,TOULON FOCH,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,22.1,NO2,FR03068,TOULON FOCH,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,24.5,NOX as NO2,FR03068,TOULON FOCH,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.1,NO,FR03070,ESTEREL,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,4.2,NO2,FR03070,ESTEREL,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,38.2,O3,FR03070,ESTEREL,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,4.3,NOX as NO2,FR03070,ESTEREL,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.7,NO,FR03071,TOULON CLARET,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,17.1,NO2,FR03071,TOULON CLARET,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,30.4,O3,FR03071,TOULON CLARET,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,18.1,NOX as NO2,FR03071,TOULON CLARET,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,6.6,NO,FR03080,AVIGNON   MAIRIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,31.8,NO2,FR03080,AVIGNON   MAIRIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,2.4,O3,FR03080,AVIGNON   MAIRIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,41.9,NOX as NO2,FR03080,AVIGNON   MAIRIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,27.5,PM10,FR03080,AVIGNON   MAIRIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,24.9,PM2.5,FR03080,AVIGNON   MAIRIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,5.8,NO,FR03084,LE PONTET,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,23.3,NO2,FR03084,LE PONTET,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,32.1,NOX as NO2,FR03084,LE PONTET,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,34.8,O3,FR03086,APT,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,24.2,O3,FR03088,CARPENTRAS,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,9.4,NO,FR03091,Avignon Rocade De Gaulle,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,20.2,NO2,FR03091,Avignon Rocade De Gaulle,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,34.6,NOX as NO2,FR03091,Avignon Rocade De Gaulle,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,2.5,NO,FR24007,ANTIBES JEAN MOULIN,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,18.5,NO2,FR24007,ANTIBES JEAN MOULIN,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,4.0,O3,FR24007,ANTIBES JEAN MOULIN,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,22.4,NOX as NO2,FR24007,ANTIBES JEAN MOULIN,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.3,NO,FR24009,CANNES BROUSSAILLES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,9.3,NO2,FR24009,CANNES BROUSSAILLES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,41.0,O3,FR24009,CANNES BROUSSAILLES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,9.6,NOX as NO2,FR24009,CANNES BROUSSAILLES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,11.8,PM10,FR24009,CANNES BROUSSAILLES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,8.5,PM2.5,FR24009,CANNES BROUSSAILLES,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,33.9,O3,FR24011,NICE OUEST BOTANIQUE,Fond,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,64.9,O3,FR24014,CIANS,Fond,mesures fixes,Rurale régionale,µg-m3,moyenne horaire brute
+2026-10-16,20.1,PM10,FR24021,PEILLON,Industrielle,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,14.2,PM2.5,FR24021,PEILLON,Industrielle,mesures fixes,Périurbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.9,NO,FR24033,GAP COMMANDERIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,8.0,NO2,FR24033,GAP COMMANDERIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,22.4,O3,FR24033,GAP COMMANDERIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,9.3,NOX as NO2,FR24033,GAP COMMANDERIE,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,0.8,NO,FR24035,NICE PROMENADE,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,5.8,NO2,FR24035,NICE PROMENADE,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,7.0,NOX as NO2,FR24035,NICE PROMENADE,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,1.0,NO,FR24036,NICE ARSON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,13.8,NO2,FR24036,NICE ARSON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,21.6,O3,FR24036,NICE ARSON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,15.3,NOX as NO2,FR24036,NICE ARSON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,18.0,PM10,FR24036,NICE ARSON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,11.8,PM2.5,FR24036,NICE ARSON,Fond,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,2.4,NO,FR24038,GAP JEAN JAURES,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,8.2,NO2,FR24038,GAP JEAN JAURES,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,11.9,NOX as NO2,FR24038,GAP JEAN JAURES,Trafic,mesures fixes,Urbaine,µg-m3,moyenne horaire brute
+2026-10-16,64.7,O3,FR24039,Obs Haute-Provence,Fond,mesures fixes,Rurale près des villes,µg-m3,moyenne horaire brute
+2026-10-16,11.2,PM10,FR24039,Obs Haute-Provence,Fond,mesures fixes,Rurale près des villes,µg-m3,moyenne horaire brute
+2026-10-16,8.9,PM2.5,FR24039,Obs Haute-Provence,Fond,mesures fixes,Rurale près des villes,µg-m3,moyenne horaire brute
+2026-10-16,59.9,O3,FR24040,Cheiron,Fond,mesures fixes,Rurale régionale,µg-m3,moyenne horaire brute

@@ -4,76 +4,66 @@
     "start": "2026-10-09",
     "end": "2026-10-16"
   },
-  "skill": {
-    "scored_points": 1,
-    "mae": 5.972,
-    "persistence_mae": 1.5,
-    "by_pollutant": {
-      "PM10": {
-        "mae": 5.972,
-        "persistence_mae": 1.5
-      }
-    }
-  },
+  "skill": null,
   "drift": {
     "dataset_drift": true,
     "drift_share": 0.6666666666666666,
     "n_drifted": 6,
     "n_columns": 9,
     "reference_rows": 20000,
-    "current_rows": 14989,
+    "current_rows": 15062,
     "columns": {
       "valeur": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.2216591520948666,
+        "score": 0.21834546516844294,
         "threshold": 0.1,
         "drifted": true
       },
       "lag_1": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.22318193927292906,
+        "score": 0.21854031088783413,
         "threshold": 0.1,
         "drifted": true
       },
       "lag_24": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.25928041124196893,
+        "score": 0.25679923973811275,
         "threshold": 0.1,
         "drifted": true
       },
       "rolling_3": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.22558318843434635,
+        "score": 0.22227546161103057,
         "threshold": 0.1,
         "drifted": true
       },
       "hour": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.005339940344089554,
+        "score": 0.015809733541284104,
         "threshold": 0.1,
         "drifted": false
       },
       "weekday": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.006904167748361297,
+        "score": 0.015790671213101716,
         "threshold": 0.1,
         "drifted": false
       },
       "prediction": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.2274650278009083,
+        "score": 0.22871025146601037,
         "threshold": 0.1,
         "drifted": true
       },
       "Polluant": {
         "method": "Jensen-Shannon distance",
-        "score": 0.028869036779823623,
+        "score": 0.030545518511164816,
         "threshold": 0.1,
         "drifted": false
       },
       "code site": {
         "method": "Jensen-Shannon distance",
-        "score": 0.17091868312144884,
+        "score": 0.17127117176022474,
         "threshold": 0.1,
         "drifted": true
       }
