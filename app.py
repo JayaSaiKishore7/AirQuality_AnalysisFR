@@ -20,7 +20,9 @@ from airquality.forecasting import forecast_24h  # noqa: E402
 
 
 # Config
-API_BASE = os.getenv("API_BASE", "http://api:8000")
+# docker-compose sets API_BASE=http://api:8000; locally, look for an API on this machine
+# (an unknown host name like "api" takes seconds to fail on Windows, slowing every page load)
+API_BASE = os.getenv("API_BASE", "http://127.0.0.1:8000")
 
 PROCESSED_PATH = str(config.PROCESSED_PATH)
 LIVE_FORECASTS_PATH = str(config.FORECASTS_DIR / "latest.csv")
@@ -232,13 +234,15 @@ with st.sidebar.expander("📈 Data Info", expanded=True):
 
 
 # Tabs
-tab_live, tab_data, tab_forecast, tab_about = st.tabs(
-    ["🟢 Live", "📊 Data Explorer", "🔮 Forecast + Map", "ℹ️ About"])
+# A radio keeps the selected view across reruns; st.tabs jumps back to the first tab
+# whenever a button is clicked, which hid the forecast result.
+VIEWS = ["🟢 Live", "📊 Data Explorer", "🔮 Forecast + Map", "ℹ️ About"]
+page = st.radio("View", VIEWS, horizontal=True, key="page", label_visibility="collapsed")
 
 
 # Live tab: outputs of the daily GitHub Actions job
 
-with tab_live:
+if page == VIEWS[0]:
     st.header("Live forecasts from Geod'Air")
     live_fc, live_obs, drift_summary, monitoring_history = load_live()
 
@@ -293,7 +297,7 @@ with tab_live:
 
 # Data Explorer tab
 
-with tab_data:
+if page == VIEWS[1]:
     st.header("Historical Data Explorer")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Records", f"{len(df):,}")
@@ -326,7 +330,7 @@ with tab_data:
 
 # Forecast + Map tab
 
-with tab_forecast:
+if page == VIEWS[2]:
     st.header("24-Hour Forecast")
 
     if not selected_pollutant or not selected_site:
@@ -444,7 +448,7 @@ with tab_forecast:
             st.plotly_chart(pfig, use_container_width=True)
 
 # About tab
-with tab_about:
+if page == VIEWS[3]:
     st.header("About this dashboard")
     st.markdown("""
     This interactive dashboard shows historical air quality and a 24-hour forecast produced by a FastAPI backend (XGBoost / RandomForest).
