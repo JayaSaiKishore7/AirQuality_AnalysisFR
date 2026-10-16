@@ -1,4 +1,9 @@
-# Test_api.py
+"""Manual smoke test against a running API (e.g. after `docker compose up`).
+
+    python scripts/smoke_test_api.py
+
+Automated tests live in tests/ and run with `pytest`.
+"""
 import requests, json, os
 from datetime import datetime
 import pandas as pd
@@ -49,7 +54,7 @@ def test_forecast():
             "Longitude": 5.37,
             "pollutant": "NO2",
             "influence": "Trafic routier",
-            "evaluation": "Réglementaire",
+            "evaluation": "mesures fixes",
             "implantation": "URBAIN",
             "site_code": "FR02001",
             "lag_1": 10.0,
@@ -59,7 +64,6 @@ def test_forecast():
     print("Payload:", json.dumps(payload, ensure_ascii=False, indent=2))
     try:
         r = requests.post(f"{API}/forecast/24h", json=payload, timeout=20)
-        ## r = requests.post(f"{API}/forecast/24h", json=payload, timeout=50)
         print("forecast ->", r.status_code)
         if r.ok:
             data = r.json()

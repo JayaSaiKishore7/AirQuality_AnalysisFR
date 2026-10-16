@@ -179,7 +179,8 @@ with st.sidebar:
 
 df = load_processed()
 if df is None:
-    st.error(f"Processed data not found or failed to parse: {PROCESSED_PATH}")
+    st.error(f"Processed data not found or failed to parse: {PROCESSED_PATH}. "
+             "Rebuild it from the monthly Geod'Air files with `python scripts/preprocess_data.py`.")
     st.stop()
 
 meta = st.session_state.get("meta_cached") or load_meta_from_api()

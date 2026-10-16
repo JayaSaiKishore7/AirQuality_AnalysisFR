@@ -1,5 +1,5 @@
 # Streamlit dashboard (local use).
-# Daily jobs + tests: requirements-pipeline.txt. Training (DVC, MLflow): requirements-train.txt.
+# Daily jobs + tests: requirements-pipeline.txt. Everything incl. MLflow and notebooks: requirements-dev.txt.
 pandas>=2.1,<3
 numpy>=1.26
 # pinned to the versions the model and encoders were pickled with

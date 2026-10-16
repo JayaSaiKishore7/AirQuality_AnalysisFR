@@ -1,28 +1,6 @@
-# Track datasets
-# data/raw/
-# data/sample/
-# data/processed/
-
-# Large combined dataset (exceeds GitHub limit)
+# Combined raw dataset: too large for GitHub, rebuilt from the monthly files
+# by scripts/preprocess_data.py
 data/raw/Airquality_PACA_2025_Combined.csv
-
-
-
-
-# Ignore environment files
-*.env
-
-# Ignore temporary files
-.ipynb_checkpoints/
-__pycache__/
-*.pyc
-
-# VS Code settings
-.vscode/
-
-
-# MLflow
-mlruns/
 
 # Model artifacts: only the canonical encoders the API loads are tracked
 models/encoders/*
@@ -32,19 +10,24 @@ models/encoders/*
 !models/encoders/implantation_encoder.pkl
 !models/encoders/site_encoder.pkl
 
-# Reports
+# Reports (reports/rf_xgb_results.csv is tracked explicitly for the notebooks)
 reports/
-
-# Python cache
-__pycache__/
-*.pyc
-
-# Jupyter
-.ipynb_checkpoints/
 
 # Full Evidently report (uploaded as a CI artifact instead)
 monitoring/drift_report.html
 
-# Local virtualenv
+# MLflow runs
+mlruns/
+
+# Python
+__pycache__/
+*.pyc
 .venv/
 .pytest_cache/
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editor
+.vscode/

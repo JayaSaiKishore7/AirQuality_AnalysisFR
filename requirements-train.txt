@@ -1,6 +1,0 @@
-# Everything, including data versioning and experiment tracking for retraining
--r requirements-pipeline.txt
-streamlit==1.64.0
-plotly==5.24.1
-dvc[s3]
-mlflow

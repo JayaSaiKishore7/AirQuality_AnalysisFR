@@ -1,0 +1,10 @@
+# Everything for local development: daily pipeline + tests, dashboard,
+# training (MLflow) and the notebooks (including the TensorFlow LSTM/GRU notebook).
+-r requirements-pipeline.txt
+-r requirements.txt
+mlflow
+jupyterlab
+matplotlib
+seaborn
+missingno
+tensorflow

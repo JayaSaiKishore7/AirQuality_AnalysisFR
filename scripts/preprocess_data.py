@@ -1,23 +1,40 @@
+import argparse
+import glob
 import os
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 import joblib
 
 
-def preprocess_raw_data():
+def build_combined_raw(raw_dir, combined_path):
+    """Concatenate the monthly Geod'Air exports (data/raw/*_Analysis.csv, semicolon-separated).
 
-    # Define paths 
-    raw_path = os.path.join("data", "raw", "Airquality_PACA_2025_Combined.csv")
-    processed_dir = os.path.join("data", "processed")
-    encoder_dir = os.path.join("models", "encoders")
+    The combined file is too large for GitHub, so a fresh clone rebuilds it from the monthly files.
+    """
+    monthly = sorted(glob.glob(os.path.join(raw_dir, "*_Analysis.csv")))
+    if not monthly:
+        raise FileNotFoundError(f"No monthly *_Analysis.csv files in {raw_dir}")
+    print(f"\n Building {combined_path} from {len(monthly)} monthly files")
+    df = pd.concat([pd.read_csv(f, sep=";") for f in monthly], ignore_index=True)
+    df.to_csv(combined_path, index=False)
+    return df
 
-    os.makedirs(processed_dir, exist_ok=True)
+
+def preprocess_raw_data(processed_path=os.path.join("data", "processed", "df_raw_cleaned.csv"),
+                        encoder_dir=os.path.join("models", "encoders")):
+
+    # Define paths
+    raw_dir = os.path.join("data", "raw")
+    raw_path = os.path.join(raw_dir, "Airquality_PACA_2025_Combined.csv")
+
+    os.makedirs(os.path.dirname(processed_path), exist_ok=True)
     os.makedirs(encoder_dir, exist_ok=True)
 
-    processed_path = os.path.join(processed_dir, "df_raw_cleaned.csv")
-
-    print(f"\n Loading raw dataset from: {raw_path}")
-    df = pd.read_csv(raw_path)
+    if os.path.exists(raw_path):
+        print(f"\n Loading raw dataset from: {raw_path}")
+        df = pd.read_csv(raw_path)
+    else:
+        df = build_combined_raw(raw_dir, raw_path)
 
     #  Keep relevant columns (must exist in raw file) 
     selected_cols = [
@@ -148,4 +165,8 @@ def preprocess_raw_data():
 
 
 if __name__ == "__main__":
-    preprocess_raw_data()
+    parser = argparse.ArgumentParser(description="Clean the raw Geod'Air data and build model features.")
+    parser.add_argument("--output", default=os.path.join("data", "processed", "df_raw_cleaned.csv"))
+    parser.add_argument("--encoder-dir", default=os.path.join("models", "encoders"))
+    args = parser.parse_args()
+    preprocess_raw_data(args.output, args.encoder_dir)
