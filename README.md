@@ -143,7 +143,8 @@ AirQuality_AnalysisFR/
 │
 ├── app.py                     # Streamlit dashboard
 ├── test_api.py                # API test script
-├── requirements.txt           # Dashboard dependencies (used by Streamlit Community Cloud)
+├── site/index.html            # Static forecast page (rebuilt daily, published to Hugging Face)
+├── requirements.txt           # Streamlit dashboard dependencies
 ├── requirements-api.txt       # FastAPI backend
 ├── requirements-pipeline.txt  # Daily jobs + tests
 ├── requirements-train.txt     # Everything, incl. DVC and MLflow for retraining
@@ -253,7 +254,8 @@ A GitHub Actions cron job (`.github/workflows/daily-forecast.yml`, 04:30 UTC) ke
 Geod'Air (data.gouv.fr)  ──►  fetch_geodair.py   data/live/observations/YYYY-MM-DD.csv  (ATMO SUD, 90-day window)
                          ──►  make_forecasts.py  data/live/forecasts/latest.csv + daily archive
                          ──►  monitor_drift.py   monitoring/drift_summary.json, history.csv, Evidently HTML report
-                         ──►  commit to main ──► Streamlit Community Cloud redeploys the dashboard
+                         ──►  build_site.py      site/index.html  (static page: Plotly charts + map)
+                         ──►  commit to main ──► deploy-hf.yml publishes the page to a Hugging Face static Space
 ```
 
 - **Data source**: the LCSQA/INERIS real-time hourly files
@@ -271,21 +273,25 @@ pip install -r requirements-pipeline.txt
 python scripts/fetch_geodair.py --days 3
 python scripts/make_forecasts.py
 python scripts/monitor_drift.py
+python scripts/build_site.py      # then open site/index.html in a browser
 ```
 After retraining, rebuild the reference files with `python scripts/build_reference.py`.
 
 ### Tests and CI
-`pytest` runs the suite in `tests/` (features, Geod'Air parsing, batch forecasting, drift, API with the real model). `.github/workflows/ci.yml` runs it on every push and pull request.
+`pytest` runs the suite in `tests/` (features, Geod'Air parsing, batch forecasting, drift, static page, API with the real model). `.github/workflows/ci.yml` runs it on every push and pull request.
 
-### Deployment (Streamlit Community Cloud, free)
-The dashboard is hosted on Streamlit Community Cloud straight from this repository. Without a FastAPI backend it runs in
-standalone mode: forecasts are computed inside the app with the same code the API uses. Community Cloud redeploys on
-every push to `main`, so the daily job's commit also refreshes the live forecasts online. One-time setup:
-1. Sign in at [share.streamlit.io](https://share.streamlit.io) with GitHub.
-2. **Create app → Deploy a public app from GitHub**: repository `JayaSaiKishore7/AirQuality_AnalysisFR`, branch `main`, main file `app.py`.
-3. Under **Advanced settings**, choose Python 3.10 and deploy.
+### Deployment (Hugging Face static Space, free)
+The public demo is a single static page, `site/index.html`, published to a Hugging Face **static** Space (free; Docker
+and Gradio Spaces need PRO). All data is embedded in the page and the charts are drawn in the browser with Plotly.js,
+so no server runs. `.github/workflows/deploy-hf.yml` uploads only that page plus the Space card
+(`deploy/huggingface/README.md`), after every daily run and whenever the page changes on `main`. One-time setup:
+1. Create a Hugging Face access token with **Write** access.
+2. In the GitHub repo: **Settings → Secrets and variables → Actions**: add secret `HF_TOKEN`, and variable
+   `HF_SPACE_ID` (e.g. `your-hf-username/airquality-paca`). The Space is created automatically.
+3. Run **Actions → Daily forecast → Run workflow**.
 
-The FastAPI backend is not hosted; run it locally with `docker compose up`.
+The Streamlit dashboard and the FastAPI backend are for local use (`docker compose up`, or see below). Without the
+API, the dashboard runs in standalone mode and computes forecasts itself with the same code the API uses.
 
 ## How to Run Locally
 ### Option 1: Using Docker (Recommended)

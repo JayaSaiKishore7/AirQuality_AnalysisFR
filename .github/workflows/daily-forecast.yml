@@ -39,6 +39,11 @@ jobs:
         id: monitor
         run: python scripts/monitor_drift.py --window-days 7
 
+      - name: Build static forecast page
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: python scripts/build_site.py
+
       - name: Upload Evidently report
         if: always()
         uses: actions/upload-artifact@v4
@@ -52,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data/live monitoring/drift_summary.json monitoring/history.csv
+          git add -A data/live monitoring/drift_summary.json monitoring/history.csv site/index.html
           if git diff --cached --quiet; then
             echo "Nothing to commit"
           else
@@ -86,5 +91,8 @@ jobs:
           else
             gh issue create --title "Data drift detected" --label data-drift --body "$body"
           fi
-# No deploy step: Streamlit Community Cloud redeploys the dashboard on every push to main,
-# including the commit above.
+
+  deploy:
+    needs: update
+    uses: ./.github/workflows/deploy-hf.yml
+    secrets: inherit

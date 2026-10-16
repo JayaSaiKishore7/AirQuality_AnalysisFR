@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PACA Air Quality Forecast</title>
+<meta name="description" content="24-hour air pollution forecasts for ATMO SUD stations in the PACA region, refreshed daily from Geod'Air data.">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #18202b; --muted: #5d6b7c; --border: #e1e5eb;
+    --measured: #2f6fdb; --forecast: #d9480f; --grid: #e8ebef; --ok: #2b8a3e; --warn: #c2410c;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141a; --panel: #171e27; --text: #e6ebf1; --muted: #93a1b2; --border: #27313d;
+      --measured: #6ea8fe; --forecast: #ff8a4c; --grid: #24303c; --ok: #51cf66; --warn: #ff922b;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 18px 48px; }
+  header h1 { margin: 0 0 4px; font-size: 1.65rem; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 22px 0; }
+  .kpi, .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+  .kpi { padding: 14px 16px; }
+  .kpi .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi .value { font-size: 1.45rem; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi .sub { color: var(--muted); font-size: 0.82rem; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; align-items: end; }
+  .controls label { display: flex; flex-direction: column; font-size: 0.8rem; color: var(--muted); gap: 4px; }
+  select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--border);
+           border-radius: 8px; padding: 7px 10px; min-width: 0; max-width: 100%; }
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .panel { padding: 14px 16px; min-width: 0; }
+  .panel h2 { font-size: 1rem; margin: 0 0 8px; }
+  .hint { color: var(--muted); font-size: 0.82rem; margin: 0 0 6px; }
+  #map { height: 420px; } #chart { height: 420px; } #history { height: 240px; }
+  section { margin-top: 14px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.num, th.num { text-align: right; }
+  tr.pick { cursor: pointer; } tr.pick:hover td { background: color-mix(in srgb, var(--measured) 8%, transparent); }
+  .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.82rem; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>PACA Air Quality Forecast</h1>
+    <p id="subtitle">Next 24 hours for ATMO SUD monitoring stations</p>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="controls">
+    <label>Pollutant <select id="pollutant" aria-label="Pollutant"></select></label>
+    <label>Station <select id="site" aria-label="Station"></select></label>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Stations: forecast peak, next 24h</h2>
+      <p class="hint">Click a station to see its forecast.</p>
+      <div id="map"></div>
+    </div>
+    <div class="panel">
+      <h2 id="chart-title">Measured vs forecast</h2>
+      <p class="hint" id="chart-hint">Last 3 days measured, then the 24h forecast.</p>
+      <div id="chart"></div>
+    </div>
+  </div>
+
+  <section class="panel">
+    <h2 id="peaks-title">Highest forecast peaks</h2>
+    <div class="table-wrap"><table id="peaks"></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>Model monitoring</h2>
+    <p class="hint" id="monitor-hint"></p>
+    <div class="table-wrap"><table id="drift"></table></div>
+    <div id="history"></div>
+  </section>
+
+  <footer>
+    Data: <a href="https://www.data.gouv.fr/datasets/5b98b648634f415309d52a50">Geod'Air real-time measurements</a> (LCSQA / INERIS), unvalidated.
+    Forecasts by an XGBoost model, refreshed daily by GitHub Actions.
+    <span id="repo"></span>
+  </footer>
+</div>
+
+<script type="application/json" id="site-data">__SITE_DATA__</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("site-data").textContent);
+  const REPO = "__REPO_URL__";
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const fmt = (v, d) => (v === null || v === undefined || Number.isNaN(v)) ? "–" : Number(v).toFixed(d);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+  const dark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const peak = (s) => Math.max(...s.fc_v);
+  const decimals = (p) => (p === "CO" ? 3 : 1);
+
+  if (REPO) $("repo").innerHTML = 'Source: <a href="' + esc(REPO) + '">' + esc(REPO.replace("https://", "")) + "</a>";
+
+  if (!D.series.length) {
+    document.querySelector(".controls").hidden = true;
+    document.querySelector(".grid").innerHTML = '<div class="panel empty">No forecasts yet. They are produced by the daily job.</div>';
+  }
+
+  // KPIs
+  const m = D.monitoring || {};
+  const drift = m.drift || null, skill = m.skill || null;
+  const issued = D.issued_at ? D.issued_at.replace("T", " ").slice(0, 16) + " UTC" : "–";
+  const kpis = [
+    ["Forecast issued", issued, D.series.length + " station/pollutant series"],
+    ["Data drift", drift ? (drift.dataset_drift ? '<span class="warn">Detected</span>' : '<span class="ok">None</span>') : "–",
+     drift ? drift.n_drifted + " of " + drift.n_columns + " columns drifted" : "no monitoring run yet"],
+    ["Forecast error (MAE)", skill ? fmt(skill.mae, 2) : "–",
+     skill ? "repeat-last-value baseline: " + fmt(skill.persistence_mae, 2) : "scored once measurements arrive"],
+  ];
+  $("kpis").innerHTML = kpis.map(([l, v, s]) =>
+    '<div class="kpi"><div class="label">' + l + '</div><div class="value">' + v + '</div><div class="sub">' + s + "</div></div>").join("");
+
+  const base = () => ({
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: {color: css("--text"), family: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", size: 12},
+    margin: {l: 48, r: 12, t: 8, b: 40},
+  });
+  const config = {displaylogo: false, responsive: true, modeBarButtonsToRemove: ["lasso2d", "select2d"]};
+
+  let state = {pollutant: D.pollutants.includes("NO2") ? "NO2" : D.pollutants[0], site: null};
+
+  function seriesFor(p) { return D.series.filter((s) => s.pollutant === p); }
+
+  function fillControls() {
+    $("pollutant").innerHTML = D.pollutants.map((p) => '<option value="' + esc(p) + '">' + esc(p) + "</option>").join("");
+    $("pollutant").value = state.pollutant;
+    const list = seriesFor(state.pollutant).sort((a, b) => a.name.localeCompare(b.name));
+    if (!list.some((s) => s.site === state.site)) state.site = list.reduce((a, b) => (peak(b) > peak(a) ? b : a)).site;
+    $("site").innerHTML = list.map((s) =>
+      '<option value="' + esc(s.site) + '">' + esc(s.name) + " (" + esc(s.site) + ")</option>").join("");
+    $("site").value = state.site;
+  }
+
+  function drawMap() {
+    const list = seriesFor(state.pollutant);
+    const unit = D.units[state.pollutant] || "";
+    const lat = list.map((s) => s.lat), lon = list.map((s) => s.lon);
+    const sel = list.map((s) => s.site === state.site);
+    const trace = {
+      type: "scattermap", lat, lon, customdata: list.map((s) => s.site),
+      text: list.map((s) => s.name + " (" + s.site + ")<br>Peak " + fmt(peak(s), decimals(s.pollutant)) + " " + unit),
+      hovertemplate: "%{text}<extra></extra>",
+      marker: {size: sel.map((x) => (x ? 19 : 12)), color: list.map(peak), colorscale: "YlOrRd", reversescale: true,  // Plotly's YlOrRd runs red→yellow; flip so high = red
+               opacity: 0.9, colorbar: {title: {text: unit, side: "right"}, thickness: 10, len: 0.8}},
+    };
+    const layout = Object.assign(base(), {
+      margin: {l: 0, r: 0, t: 0, b: 0},
+      map: {style: dark() ? "carto-darkmatter" : "carto-positron",
+            center: {lat: (Math.min(...lat) + Math.max(...lat)) / 2, lon: (Math.min(...lon) + Math.max(...lon)) / 2},
+            zoom: 6.7},
+    });
+    Plotly.react("map", [trace], layout, config);
+  }
+
+  function drawChart() {
+    const s = D.series.find((x) => x.site === state.site && x.pollutant === state.pollutant);
+    if (!s) return;
+    const unit = D.units[s.pollutant] || "";
+    $("chart-title").textContent = s.pollutant + " at " + s.name + " (" + s.site + ")";
+    const traces = [
+      {x: s.obs_t, y: s.obs_v, name: "Measured", type: "scatter", mode: "lines",
+       line: {color: css("--measured"), width: 2}, hovertemplate: "%{y:." + decimals(s.pollutant) + "f} " + unit + "<extra>Measured</extra>"},
+      {x: [s.base_time].concat(s.fc_t), y: [s.last].concat(s.fc_v), name: "Forecast", type: "scatter", mode: "lines+markers",
+       line: {color: css("--forecast"), width: 2, dash: "dot"}, marker: {size: 4},
+       hovertemplate: "%{y:." + decimals(s.pollutant) + "f} " + unit + "<extra>Forecast</extra>"},
+    ];
+    const layout = Object.assign(base(), {
+      hovermode: "x unified", showlegend: true, legend: {orientation: "h", y: 1.08, x: 0},
+      xaxis: {gridcolor: css("--grid"), linecolor: css("--border")},
+      yaxis: {gridcolor: css("--grid"), zeroline: false, title: {text: unit}, rangemode: "tozero"},
+      shapes: [{type: "line", xref: "x", yref: "paper", x0: s.base_time, x1: s.base_time, y0: 0, y1: 1,
+                line: {color: css("--muted"), width: 1, dash: "dash"}}],
+      annotations: [{x: s.base_time, y: 1, xref: "x", yref: "paper", text: "last measurement", showarrow: false,
+                     xanchor: "left", yanchor: "top", font: {color: css("--muted"), size: 11}}],
+    });
+    Plotly.react("chart", traces, layout, config);
+  }
+
+  function drawPeaks() {
+    const unit = D.units[state.pollutant] || "";
+    const list = seriesFor(state.pollutant).map((s) => {
+      const i = s.fc_v.indexOf(peak(s));
+      return {s, peak: peak(s), at: s.fc_t[i]};
+    }).sort((a, b) => b.peak - a.peak).slice(0, 8);
+    $("peaks-title").textContent = "Highest " + state.pollutant + " forecast peaks, next 24h";
+    $("peaks").innerHTML = "<tr><th>Station</th><th>Code</th><th class='num'>Last measured</th><th class='num'>Forecast peak</th><th>Peak at (UTC)</th></tr>" +
+      list.map((r) => '<tr class="pick" data-site="' + esc(r.s.site) + '"><td>' + esc(r.s.name) + "</td><td>" + esc(r.s.site) +
+        '</td><td class="num">' + fmt(r.s.last, decimals(state.pollutant)) + " " + unit + '</td><td class="num">' +
+        fmt(r.peak, decimals(state.pollutant)) + " " + unit + "</td><td>" + esc(r.at.replace("T", " ")) + "</td></tr>").join("");
+  }
+
+  function drawMonitoring() {
+    if (!drift) {
+      $("monitor-hint").textContent = "No drift check has run yet.";
+      return;
+    }
+    $("monitor-hint").textContent = "Evidently drift test: live data from " + m.window.start + " to " + m.window.end +
+      " compared with the training data. A drifted column means recent values no longer look like what the model learned from.";
+    const label = {"valeur": "Measured value", "lag_1": "Value 1h before", "lag_24": "Value 24h before", "rolling_3": "3-hour average",
+                   "hour": "Hour of day", "weekday": "Day of week", "prediction": "Model prediction", "Polluant": "Pollutant mix", "code site": "Station mix"};
+    $("drift").innerHTML = "<tr><th>Column</th><th>Test</th><th class='num'>Score</th><th class='num'>Threshold</th><th>Drifted</th></tr>" +
+      Object.entries(drift.columns).map(([c, v]) => "<tr><td>" + esc(label[c] || c) + "</td><td>" + esc(v.method) +
+        '</td><td class="num">' + fmt(v.score, 3) + '</td><td class="num">' + fmt(v.threshold, 2) + "</td><td>" +
+        (v.drifted ? '<span class="warn">yes</span>' : '<span class="ok">no</span>') + "</td></tr>").join("");
+    if (D.history.length > 1) {
+      Plotly.react("history", [{x: D.history.map((h) => h.date), y: D.history.map((h) => h.drift_share), type: "scatter",
+        mode: "lines+markers", line: {color: css("--measured")}, hovertemplate: "%{y:.0%}<extra>drifted columns</extra>"}],
+        Object.assign(base(), {margin: {l: 48, r: 12, t: 28, b: 36}, title: {text: "Share of drifted columns per day", font: {size: 13}, x: 0},
+          yaxis: {range: [0, 1], tickformat: ".0%", gridcolor: css("--grid")}, xaxis: {gridcolor: css("--grid")},
+          shapes: [{type: "line", xref: "paper", x0: 0, x1: 1, y0: 0.5, y1: 0.5, line: {color: css("--warn"), dash: "dash", width: 1}}]}), config);
+    } else {
+      $("history").hidden = true;
+    }
+  }
+
+  function drawAll() { if (D.series.length) { fillControls(); drawMap(); drawChart(); drawPeaks(); } drawMonitoring(); }
+
+  $("pollutant").addEventListener("change", (e) => { state.pollutant = e.target.value; drawAll(); });
+  $("site").addEventListener("change", (e) => { state.site = e.target.value; drawMap(); drawChart(); });
+  $("peaks").addEventListener("click", (e) => {
+    const tr = e.target.closest("tr[data-site]");
+    if (tr) { state.site = tr.dataset.site; $("site").value = state.site; drawMap(); drawChart(); }
+  });
+  drawAll();
+  if (D.series.length) {
+    $("map").on("plotly_click", (ev) => { state.site = ev.points[0].customdata; $("site").value = state.site; drawMap(); drawChart(); });
+  }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+})();
+</script>
+</body>
+</html>
