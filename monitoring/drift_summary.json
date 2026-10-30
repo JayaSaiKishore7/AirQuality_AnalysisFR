@@ -1,33 +1,33 @@
 {
-  "run_date": "2026-10-29",
+  "run_date": "2026-10-30",
   "window": {
-    "start": "2026-10-22",
-    "end": "2026-10-29"
+    "start": "2026-10-23",
+    "end": "2026-10-30"
   },
   "skill": {
-    "scored_points": 14175,
-    "mae": 7.294,
-    "persistence_mae": 10.303,
+    "scored_points": 14437,
+    "mae": 7.511,
+    "persistence_mae": 10.394,
     "by_pollutant": {
       "CO": {
-        "mae": 0.052,
-        "persistence_mae": 0.061
+        "mae": 0.054,
+        "persistence_mae": 0.06
       },
       "NO2": {
-        "mae": 8.039,
-        "persistence_mae": 11.944
+        "mae": 8.137,
+        "persistence_mae": 11.7
       },
       "O3": {
-        "mae": 14.596,
-        "persistence_mae": 20.425
+        "mae": 14.881,
+        "persistence_mae": 20.523
       },
       "PM10": {
-        "mae": 4.456,
-        "persistence_mae": 6.691
+        "mae": 4.746,
+        "persistence_mae": 7.189
       },
       "PM2.5": {
-        "mae": 2.761,
-        "persistence_mae": 3.295
+        "mae": 3.088,
+        "persistence_mae": 3.485
       }
     }
   },
@@ -37,59 +37,59 @@
     "n_drifted": 6,
     "n_columns": 9,
     "reference_rows": 20000,
-    "current_rows": 15234,
+    "current_rows": 15347,
     "columns": {
       "valeur": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.23247768962296178,
+        "score": 0.23467175966498763,
         "threshold": 0.1,
         "drifted": true
       },
       "lag_1": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.23286333917453453,
+        "score": 0.23601332103568487,
         "threshold": 0.1,
         "drifted": true
       },
       "lag_24": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.2386415204164053,
+        "score": 0.23451079443674883,
         "threshold": 0.1,
         "drifted": true
       },
       "rolling_3": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.2359420055909871,
+        "score": 0.23989376937137294,
         "threshold": 0.1,
         "drifted": true
       },
       "hour": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.05379361346452738,
+        "score": 0.06158440138318894,
         "threshold": 0.1,
         "drifted": false
       },
       "weekday": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.049640196611250624,
+        "score": 0.05470866746148396,
         "threshold": 0.1,
         "drifted": false
       },
       "prediction": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.24789469270693007,
+        "score": 0.25196164577173613,
         "threshold": 0.1,
         "drifted": true
       },
       "Polluant": {
         "method": "Jensen-Shannon distance",
-        "score": 0.02630436350758482,
+        "score": 0.02902354866092838,
         "threshold": 0.1,
         "drifted": false
       },
       "code site": {
         "method": "Jensen-Shannon distance",
-        "score": 0.17499501218466257,
+        "score": 0.1751513715171405,
         "threshold": 0.1,
         "drifted": true
       }
