@@ -15,9 +15,12 @@ import mlflow.xgboost
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from airquality import config  # noqa: E402
+from airquality.features import FEATURE_ORDER  # noqa: E402
 from airquality.model import POLLUTANT_COL, PollutantScaledModel, fit_scales  # noqa: E402
 
 MAX_MODEL_MB = 50
+REPORTS_DIR = config.ROOT / "reports"
 
 
 def mae_by_pollutant(y_true, y_pred, pollutants):
@@ -57,28 +60,18 @@ def main():
     # MLflow 3 no longer writes to the ./mlruns file store; use a local SQLite database
     # unless MLFLOW_TRACKING_URI points elsewhere. View with: mlflow ui --backend-store-uri sqlite:///mlflow.db
     if not os.getenv("MLFLOW_TRACKING_URI"):
-        mlflow.set_tracking_uri("sqlite:///mlflow.db")
+        mlflow.set_tracking_uri(f"sqlite:///{(config.ROOT / 'mlflow.db').as_posix()}")
     mlflow.set_experiment("AirQuality_Forecasting")
 
     # 1. Load cleaned data
-    data_path = os.path.join("data", "processed", "df_raw_cleaned.csv")
+    data_path = config.PROCESSED_PATH
     print(f"Loading cleaned data from: {data_path}")
     df = pd.read_csv(data_path, parse_dates=["date"])
     df = df.sort_values("date").reset_index(drop=True)
 
-    # 2. Define target & features
+    # 2. Define target & features (the column order the API and daily jobs feed the model)
     target_col = "valeur"
-    feature_cols = [
-        "Latitude", "Longitude",
-        "hour", "day", "month", "year",
-        "weekday", "weekend",
-        "pollutant_encoded",
-        "influence_encoded",
-        "evaluation_encoded",
-        "implantation_encoded",
-        "site_encoded",
-        "lag_1", "lag_24", "rolling_3",
-    ]
+    feature_cols = FEATURE_ORDER
 
     X = df[feature_cols].values
     y = df[target_col].values
@@ -165,14 +158,14 @@ def main():
     best = min(deployable, key=lambda r: r["rmse"])
     print(f"\n Best deployable model: {best['name']} (RMSE = {best['rmse']:.4f}, {best['size_mb']:.1f} MB)")
 
-    os.makedirs("models", exist_ok=True)
-    model_path = os.path.join("models", "best_model.pkl")
+    model_path = config.MODEL_PATH
+    model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(best["model"], model_path)
     print(f"Saved best model to: {model_path}")
 
     # 9. Save the comparison (read by notebooks/DeepLearning.ipynb)
-    os.makedirs("reports", exist_ok=True)
-    report_path = os.path.join("reports", "rf_xgb_results.csv")
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    report_path = REPORTS_DIR / "rf_xgb_results.csv"
     pd.DataFrame(
         [{"Model": r["name"], "MAE": r["mae"], "RMSE": r["rmse"], "R2": r["r2"]} for r in results + [baseline]]
     ).to_csv(report_path, index=False)

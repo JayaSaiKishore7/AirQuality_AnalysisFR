@@ -13,6 +13,16 @@ notebooks/
 
 # MLflow
 mlruns/
+mlflow.db
+
+# Tests, docs, generated page, screenshots, tool caches
+tests/
+.pytest_cache/
+.claude/
+.github/
+docs/
+images/
+site/
 
 # Local environments
 .env
@@ -27,6 +37,7 @@ Thumbs.db
 # Data (keep only what API needs)
 data/raw/
 data/sample/
+data/processed/df_sample_processed.csv
 
 # Reports
 reports/

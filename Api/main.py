@@ -2,6 +2,7 @@
 import json
 import logging
 import sys
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, List, Optional
@@ -25,7 +26,20 @@ DATA_PATH = config.PROCESSED_PATH
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("airquality-api")
 
-app = FastAPI(title="Air Quality Forecast API")
+model = None
+encoders = {}
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global model, encoders
+    log.info("Loading model and encoders...")
+    model, encoders = load_artifacts()
+    log.info("Model and encoders loaded")
+    yield
+
+
+app = FastAPI(title="Air Quality Forecast API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,17 +47,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-model = None
-encoders = {}
-
-@app.on_event("startup")
-def load_artifacts_on_startup():
-    global model, encoders
-
-    log.info("Loading model and encoders...")
-    model, encoders = load_artifacts()
-    log.info("All encoders loaded successfully")
 
 class ForecastRequest(BaseModel):
     datetime: str
@@ -110,7 +113,9 @@ def meta():
 def forecast(req: ForecastRequest):
     try:
         return forecast_24h(model, encoders, req.model_dump())
-
+    except ValueError as e:
+        # unknown station/pollutant, unparseable datetime: the caller's input, not a server fault
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         log.exception("Forecast failed")
         raise HTTPException(status_code=500, detail=str(e))

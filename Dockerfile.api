@@ -2,10 +2,9 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    gcc \
-    git \
-    curl \
+# curl is for the docker-compose healthcheck; every Python dependency ships a wheel,
+# so no compiler is needed
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements-api.txt .

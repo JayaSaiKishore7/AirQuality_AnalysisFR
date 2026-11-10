@@ -8,7 +8,11 @@ import joblib
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from airquality import config  # noqa: E402
+from airquality.artifacts import ENCODED_COLUMNS  # noqa: E402
 from airquality.features import add_lag_features  # noqa: E402
+
+RAW_DIR = config.ROOT / "data" / "raw"
 
 
 def build_combined_raw(raw_dir, combined_path):
@@ -25,11 +29,10 @@ def build_combined_raw(raw_dir, combined_path):
     return df
 
 
-def preprocess_raw_data(processed_path=os.path.join("data", "processed", "df_raw_cleaned.csv"),
-                        encoder_dir=os.path.join("models", "encoders")):
+def preprocess_raw_data(processed_path=config.PROCESSED_PATH, encoder_dir=config.ENCODER_DIR):
 
-    # Define paths
-    raw_dir = os.path.join("data", "raw")
+    # Define paths (relative to the project, whatever folder the script is run from)
+    raw_dir = str(RAW_DIR)
     raw_path = os.path.join(raw_dir, "Airquality_PACA_2025_Combined.csv")
 
     os.makedirs(os.path.dirname(processed_path), exist_ok=True)
@@ -55,8 +58,6 @@ def preprocess_raw_data(processed_path=os.path.join("data", "processed", "df_raw
     ]
 
     df = df[selected_cols].copy()
-    
-    ## df = df[selected_cols].copy()
 
     #  Drop unusable rows 
     df = df.dropna(subset=["Date de début", "valeur", "Latitude", "Longitude"])
@@ -74,47 +75,15 @@ def preprocess_raw_data(processed_path=os.path.join("data", "processed", "df_raw
     df["weekday"] = df["date"].dt.weekday
     df["weekend"] = df["weekday"].isin([5, 6]).astype(int)
 
-    # Label encoding for categorical features 
-    categorical_cols = [
-        "Polluant",
-        "type d'influence",
-        "type d'évaluation",
-        "type d'implantation",
-        "code site",
-    ]
-
-    # map raw column names -> clean encoder file stem
-    encoder_name_map = {
-        "Polluant": "pollutant",
-        "type d'influence": "influence",
-        "type d'évaluation": "evaluation",
-        "type d'implantation": "implantation",
-        "code site": "site",
-    }
-
-    encoders = {}
-    for col in categorical_cols:
+    # Label encoding for categorical features: <name>_encoded columns and one encoder
+    # file per category, with the same names the API and daily jobs load
+    for name, col in ENCODED_COLUMNS.items():
         le = LabelEncoder()
         df[col] = df[col].astype(str)
-        df[f"{col}_encoded"] = le.fit_transform(df[col])
-        encoders[col] = le
-
-        clean_name = encoder_name_map[col]  # e.g. "pollutant"
-        encoder_path = os.path.join(encoder_dir, f"{clean_name}_encoder.pkl")
-        joblib.dump(le, encoder_path)
+        df[f"{name}_encoded"] = le.fit_transform(df[col])
+        joblib.dump(le, os.path.join(encoder_dir, config.ENCODER_FILES[name]))
 
     print("Encoders saved.")
-
-    # Rename encoded columns for consistency with modeling
-    df = df.rename(
-        columns={
-            "Polluant_encoded": "pollutant_encoded",
-            "type d'influence_encoded": "influence_encoded",
-            "type d'évaluation_encoded": "evaluation_encoded",
-            "type d'implantation_encoded": "implantation_encoded",
-            "code site_encoded": "site_encoded",
-        }
-    )
 
     # Lag & rolling features per site+pollutant series. Shared with the live pipeline,
     # and past-only: rolling_3 for hour t is the mean of t-3..t-1, never including t.
@@ -168,7 +137,7 @@ def preprocess_raw_data(processed_path=os.path.join("data", "processed", "df_raw
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Clean the raw Geod'Air data and build model features.")
-    parser.add_argument("--output", default=os.path.join("data", "processed", "df_raw_cleaned.csv"))
-    parser.add_argument("--encoder-dir", default=os.path.join("models", "encoders"))
+    parser.add_argument("--output", default=str(config.PROCESSED_PATH))
+    parser.add_argument("--encoder-dir", default=str(config.ENCODER_DIR))
     args = parser.parse_args()
     preprocess_raw_data(args.output, args.encoder_dir)

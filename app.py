@@ -45,7 +45,6 @@ st.set_page_config(layout="wide", page_title="Air Quality Forecast Dashboard", p
 
 # Helpers / caching
 @st.cache_data(ttl=300)
-## @st.cache_data(ttl=600)
 def check_api_root():
     try:
         r = requests.get(f"{API_BASE}/", timeout=3)
@@ -54,7 +53,6 @@ def check_api_root():
         return False
 
 @st.cache_data(ttl=600)
-# st.cache_data(ttl=1000)
 def load_meta_from_api():
     try:
         r = requests.get(f"{API_BASE}/meta", timeout=6)
@@ -157,7 +155,6 @@ st.markdown(
     <style>
         .stApp {{ background-color: {PALETTE['bg']}; color: {PALETTE['text']}; }}
         .stMarkdown {{ color: {PALETTE['text']}; }}
-        .css-18e3th9 {{ background-color: {PALETTE['bg']}; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -165,9 +162,6 @@ st.markdown(
 
 st.title("🌍 Air Quality Forecast Dashboard")
 st.markdown("Interactive forecasting dashboard — PACA region")
-
-## st.title(" Air Quality Forecast Dashboard")
-## st.markdown("Interactive forecasting dashboard — PACA region")
 
 # Sidebar
 with st.sidebar:
@@ -269,7 +263,7 @@ if page == VIEWS[0]:
                                   mode="lines+markers", name="forecast", line=dict(color=PALETTE["accent"])))
         lfig.update_layout(title=f"{live_pollutant} @ {live_site} — measured vs next 24h",
                            template="plotly_dark", height=420)
-        st.plotly_chart(lfig, use_container_width=True)
+        st.plotly_chart(lfig, width="stretch")
 
     st.subheader("Monitoring")
     if drift_summary is None:
@@ -286,13 +280,13 @@ if page == VIEWS[0]:
         st.caption(f"Window {drift_summary['window']['start']} → {drift_summary['window']['end']} "
                    "compared with the training data (Evidently).")
         if drift.get("columns"):
-            st.dataframe(pd.DataFrame(drift["columns"]).T, use_container_width=True)
+            st.dataframe(pd.DataFrame(drift["columns"]).T, width="stretch")
         if monitoring_history is not None and len(monitoring_history) > 1:
             hfig = go.Figure()
             hfig.add_trace(go.Scatter(x=monitoring_history["run_date"], y=monitoring_history["drift_share"],
                                       mode="lines+markers", name="drift share", line=dict(color=PALETTE["primary"])))
             hfig.update_layout(title="Share of drifted columns per daily run", template="plotly_dark", height=300)
-            st.plotly_chart(hfig, use_container_width=True)
+            st.plotly_chart(hfig, width="stretch")
 
 
 # Data Explorer tab
@@ -322,10 +316,10 @@ if page == VIEWS[1]:
                                          name="rolling_3", line=dict(color=PALETTE["primary"])))
             fig.update_layout(title=f"{selected_pollutant} at {selected_site} — recent trend",
                               template="plotly_dark", height=450)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             with st.expander("Show recent data table"):
-                st.dataframe(recent[["date", "valeur", "Latitude", "Longitude"]].tail(200), use_container_width=True)
+                st.dataframe(recent[["date", "valeur", "Latitude", "Longitude"]].tail(200), width="stretch")
 
 
 # Forecast + Map tab
@@ -377,12 +371,13 @@ if page == VIEWS[2]:
                     "site": selected_site,
                     "pollutant": selected_pollutant
                 }])
-                map_fig = px.scatter_mapbox(
+                # scatter_map (MapLibre) replaces the deprecated Mapbox-based scatter_mapbox
+                map_fig = px.scatter_map(
                     map_df, lat="lat", lon="lon", hover_name="site", hover_data=["pollutant"],
-                    zoom=9, height=300
+                    zoom=9, height=300, map_style="open-street-map",
                 )
-                map_fig.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0}, template="plotly_dark")
-                st.plotly_chart(map_fig, use_container_width=True)
+                map_fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, template="plotly_dark")
+                st.plotly_chart(map_fig, width="stretch")
             except Exception as e:
                 st.write("Map could not be rendered:", e)
 
@@ -417,7 +412,7 @@ if page == VIEWS[2]:
                     ))
                     ffig.add_hline(y=latest_row["valeur"], line=dict(color="gray", dash="dash"), annotation_text="Last known")
                     ffig.update_layout(title=f"24h Forecast — {selected_pollutant} @ {selected_site}", template="plotly_dark", height=420)
-                    st.plotly_chart(ffig, use_container_width=True)
+                    st.plotly_chart(ffig, width="stretch")
 
                     # metrics & table
                     m1, m2, m3 = st.columns(3)
@@ -428,7 +423,7 @@ if page == VIEWS[2]:
                     st.subheader("Forecast details (next 24 hours)")
                     display = df_fore.copy()
                     display["forecast_time"] = display["forecast_time"].dt.strftime("%Y-%m-%d %H:%M:%S")
-                    st.dataframe(display, use_container_width=True)
+                    st.dataframe(display, width="stretch")
 
                     csv = df_fore.to_csv(index=False)
                     st.download_button("📥 Download forecast CSV", data=csv,
@@ -445,14 +440,14 @@ if page == VIEWS[2]:
             pfig = go.Figure()
             pfig.add_trace(go.Scatter(x=prev["forecast_time"], y=prev["predicted_valeur"], mode="lines+markers", line=dict(color=PALETTE["primary"])))
             pfig.update_layout(template="plotly_dark", height=300)
-            st.plotly_chart(pfig, use_container_width=True)
+            st.plotly_chart(pfig, width="stretch")
 
 # About tab
 if page == VIEWS[3]:
     st.header("About this dashboard")
     st.markdown("""
-    This interactive dashboard shows historical air quality and a 24-hour forecast produced by a FastAPI backend (XGBoost / RandomForest).
-    - Backend: FastAPI
+    This interactive dashboard shows historical air quality and a 24-hour forecast from an XGBoost model.
+    - Backend: FastAPI when it is running (Docker Compose); otherwise the model runs inside this app
     - Frontend: Streamlit + Plotly
     - Forecast bands: approximate ±1σ computed from recent residuals (empirical)
     """)

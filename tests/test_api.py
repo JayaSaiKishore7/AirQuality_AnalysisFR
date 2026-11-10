@@ -69,8 +69,11 @@ def test_forecast_24h(client):
 
 
 def test_forecast_rejects_bad_input(client):
-    assert client.post("/forecast/24h", json={**PAYLOAD, "pollutant": "zzz"}).status_code == 500
-    assert client.post("/forecast/24h", json={**PAYLOAD, "datetime": "not a date"}).status_code == 500
+    assert client.post("/forecast/24h", json={**PAYLOAD, "pollutant": "zzz"}).status_code == 422
+    assert client.post("/forecast/24h", json={**PAYLOAD, "datetime": "not a date"}).status_code == 422
+    # close spellings of identifiers are other stations/pollutants, never silently substituted
+    assert client.post("/forecast/24h", json={**PAYLOAD, "pollutant": "SO2"}).status_code == 422
+    assert client.post("/forecast/24h", json={**PAYLOAD, "site_code": "FR02099"}).status_code == 422
     assert client.post("/forecast/24h", json={"pollutant": "PM10"}).status_code == 422
     # exactly 24 hourly values are required
     assert client.post("/forecast/24h", json={**PAYLOAD, "recent_values": [20.0] * 23}).status_code == 422

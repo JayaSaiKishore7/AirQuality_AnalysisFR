@@ -9,9 +9,10 @@ from datetime import datetime
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from airquality import config  # noqa: E402
 from airquality.features import history_window  # noqa: E402
 
-API = "http://127.0.0.1:8000"
+API = os.getenv("API_BASE", "http://127.0.0.1:8000")
 
 def test_root():
     try:
@@ -32,9 +33,9 @@ def test_meta():
         print("/meta failed:", e)
 
 def test_forecast():
-    processed_path = os.path.join("data", "processed", "df_raw_cleaned.csv")
-    if os.path.exists(processed_path):
-        df = pd.read_csv(processed_path, parse_dates=["date"])
+    processed_path = config.PROCESSED_PATH
+    if processed_path.exists():
+        df = pd.read_csv(processed_path, parse_dates=["date"], dtype={"code site": str})
         row = df.iloc[-1]
         series = df[(df["code site"] == row["code site"]) & (df["Polluant"] == row["Polluant"])]
         history = history_window(series.set_index("date")["valeur"])

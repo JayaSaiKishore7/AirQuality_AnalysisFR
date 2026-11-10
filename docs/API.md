@@ -71,7 +71,8 @@ Request:
 |---|---|
 | `datetime` | Time of the last known measurement (ISO 8601) |
 | `Latitude`, `Longitude` | Station coordinates |
-| `pollutant`, `influence`, `evaluation`, `implantation`, `site_code` | Categories as in `/meta`. Unknown spellings are matched to the closest known value. |
+| `pollutant`, `site_code` | As in `/meta`; must match exactly. |
+| `influence`, `evaluation`, `implantation` | Station type, as in `/meta`. A misspelling is matched to the closest known value. |
 | `recent_values` | Exactly 24 hourly measurements, oldest first; the last one is the value at `datetime`. Fill short gaps before sending (the dashboard interpolates gaps of up to 3 hours). |
 
 Response: 24 items, one per hour after `datetime`.
@@ -83,8 +84,8 @@ Response: 24 items, one per hour after `datetime`.
 ]
 ```
 
-Errors: `422` if a field is missing, has the wrong type or `recent_values` does not have 24 values;
-`500` if a category cannot be encoded or the date is invalid.
+Errors: `422` if a field is missing or has the wrong type, `recent_values` does not have 24 values,
+the station or pollutant is unknown, or `datetime` is not a valid date; `500` for unexpected server errors.
 
 ## GET `/forecasts/latest`
 

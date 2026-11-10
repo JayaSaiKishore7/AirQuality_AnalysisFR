@@ -5,6 +5,10 @@ on:
     # 04:30 UTC: yesterday's Geod'Air file is complete by then
     - cron: "30 4 * * *"
   workflow_dispatch:
+    inputs:
+      days:
+        description: "Days of Geod'Air data to (re)download, e.g. 10 to backfill after missed runs"
+        default: "3"
 
 permissions:
   contents: write
@@ -30,7 +34,9 @@ jobs:
         run: pip install -r requirements-pipeline.txt
 
       - name: Pull new Geod'Air data
-        run: python scripts/fetch_geodair.py --days 3
+        env:
+          DAYS: ${{ inputs.days || '3' }}
+        run: python scripts/fetch_geodair.py --days "$DAYS"
 
       - name: Make 24h forecasts
         run: python scripts/make_forecasts.py

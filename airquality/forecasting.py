@@ -12,15 +12,18 @@ from airquality.features import STATIC_COLS, add_lag_features, history_window, r
 SERIES_KEYS = [config.COL_SITE, config.COL_POLLUTANT]
 
 
-def encode_value(le, value: str) -> int:
-    """Encode one category, falling back to the closest known spelling."""
-    try:
+def encode_value(le, value: str, fuzzy: bool = True) -> int:
+    """Encode one category; with `fuzzy`, fall back to the closest known spelling.
+
+    Identifiers (station code, pollutant) must match exactly: a close spelling is
+    a *different* station or pollutant (FR02099 -> FR02029, SO2 -> NO2).
+    """
+    if value in set(le.classes_):
         return int(le.transform([value])[0])
-    except Exception:
-        close = difflib.get_close_matches(value, le.classes_, n=1)
-        if close:
-            return int(le.transform([close[0]])[0])
-        raise ValueError(f"Invalid value: {value}")
+    close = difflib.get_close_matches(value, list(le.classes_), n=1) if fuzzy else []
+    if close:
+        return int(le.transform([close[0]])[0])
+    raise ValueError(f"Unknown value {value!r}; expected one of {list(le.classes_)[:20]}")
 
 
 def forecast_24h(model, encoders: dict, req: dict) -> list[dict]:
@@ -32,11 +35,11 @@ def forecast_24h(model, encoders: dict, req: dict) -> list[dict]:
     static = pd.DataFrame([{
         "Latitude": req["Latitude"],
         "Longitude": req["Longitude"],
-        "pollutant_encoded": encode_value(encoders["pollutant"], req["pollutant"]),
+        "pollutant_encoded": encode_value(encoders["pollutant"], req["pollutant"], fuzzy=False),
         "influence_encoded": encode_value(encoders["influence"], req["influence"]),
         "evaluation_encoded": encode_value(encoders["evaluation"], req["evaluation"]),
         "implantation_encoded": encode_value(encoders["implantation"], req["implantation"]),
-        "site_encoded": encode_value(encoders["site"], req["site_code"]),
+        "site_encoded": encode_value(encoders["site"], req["site_code"], fuzzy=False),
     }])[STATIC_COLS]
     history = np.array([req["recent_values"]], dtype=float)
 
