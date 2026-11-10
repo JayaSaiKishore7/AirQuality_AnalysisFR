@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from airquality import config, geodair  # noqa: E402
 from airquality.artifacts import load_artifacts, load_stations  # noqa: E402
-from airquality.drift import run_drift, with_predictions  # noqa: E402
+from airquality.drift import run_drift, select_reference, with_predictions  # noqa: E402
 from airquality.forecasting import build_live_features, score_past_forecasts  # noqa: E402
 
 MIN_CURRENT_ROWS = 200
@@ -71,7 +71,9 @@ def main():
     feats = build_live_features(obs, encoders, load_stations())
     feats = feats[feats[config.COL_DATE].dt.date >= since]
     current = with_predictions(model, feats)
-    reference = pd.read_csv(config.DRIFT_REFERENCE_PATH, dtype={config.COL_SITE: str})
+    # same season and same station/pollutant series as the live window
+    reference = select_reference(pd.read_csv(config.DRIFT_REFERENCE_PATH, dtype={config.COL_SITE: str}),
+                                 current, months=feats[config.COL_DATE].dt.month.unique())
 
     config.MONITORING_DIR.mkdir(parents=True, exist_ok=True)
     summary = {

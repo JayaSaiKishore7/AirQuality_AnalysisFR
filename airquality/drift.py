@@ -30,12 +30,32 @@ class DriftResult:
         return asdict(self)
 
 
-def with_predictions(model, feats: pd.DataFrame) -> pd.DataFrame:
+def with_predictions(model, feats: pd.DataFrame, extra_cols: tuple = ()) -> pd.DataFrame:
     """Score feature rows (one-step-ahead, as in training) and keep the drift columns."""
     feats = feats.dropna(subset=FEATURE_ORDER)
     out = feats.copy()
     out["prediction"] = model.predict(feats[FEATURE_ORDER].to_numpy(dtype=float)) if len(feats) else []
-    return out[DRIFT_COLS].reset_index(drop=True)
+    return out[DRIFT_COLS + list(extra_cols)].reset_index(drop=True)
+
+
+def select_reference(reference: pd.DataFrame, current: pd.DataFrame, months, min_rows: int = 2000) -> pd.DataFrame:
+    """The comparable part of the training reference for a live window.
+
+    Comparing a November week with a whole-year sample flags seasonal changes as
+    drift, and stations that are not reporting now change the station mix. So keep
+    reference rows from the window's calendar months and their neighbours, for the
+    station/pollutant series present in `current`. Falls back to looser filters
+    when that leaves fewer than `min_rows` rows.
+    """
+    near = {((m + d - 1) % 12) + 1 for m in months for d in (-1, 0, 1)}
+    series = set(zip(current[config.COL_SITE], current[config.COL_POLLUTANT]))
+    in_series = pd.Series(list(zip(reference[config.COL_SITE], reference[config.COL_POLLUTANT])),
+                          index=reference.index).isin(series)
+    in_season = reference["month"].isin(near) if "month" in reference else pd.Series(True, index=reference.index)
+    for mask in (in_season & in_series, in_season, in_series):
+        if mask.sum() >= min_rows:
+            return reference[mask].reset_index(drop=True)
+    return reference.reset_index(drop=True)
 
 
 def _column_drifted(method: str, value: float, threshold: float) -> bool:

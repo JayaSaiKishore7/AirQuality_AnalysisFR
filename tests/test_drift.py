@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from airquality import config
-from airquality.drift import DRIFT_COLS, run_drift
+from airquality.drift import DRIFT_COLS, run_drift, select_reference
 
 
 def frame(n, shift=0.0, seed=0):
@@ -42,4 +42,16 @@ def test_drift_reference_file_matches_schema():
     if not config.DRIFT_REFERENCE_PATH.exists():
         pytest.skip("reference not built")
     ref = pd.read_csv(config.DRIFT_REFERENCE_PATH, nrows=5)
-    assert list(ref.columns) == DRIFT_COLS
+    assert list(ref.columns) == DRIFT_COLS + ["month"]
+
+
+def test_select_reference_keeps_season_and_live_series():
+    ref = frame(1200, seed=3).assign(month=np.tile(np.arange(1, 13), 100))
+    current = frame(50, seed=4).assign(**{config.COL_SITE: "FR02008", config.COL_POLLUTANT: "NO2"})
+
+    sel = select_reference(ref, current, months=[12], min_rows=10)
+    assert set(sel["month"]) == {11, 12, 1}  # neighbours wrap around the year
+    assert set(zip(sel[config.COL_SITE], sel[config.COL_POLLUTANT])) == {("FR02008", "NO2")}
+
+    # too few comparable rows: fall back rather than test against a handful
+    assert len(select_reference(ref, current, months=[12], min_rows=10_000)) == len(ref)
