@@ -3,7 +3,7 @@
 [![Live demo](https://img.shields.io/badge/%F0%9F%A4%97%20Live%20demo-Hugging%20Face-FFD21E)](https://huggingface.co/spaces/JayaSaiKishore/airquality-paca)
 [![CI](https://github.com/JayaSaiKishore7/AirQuality_AnalysisFR/actions/workflows/ci.yml/badge.svg)](https://github.com/JayaSaiKishore7/AirQuality_AnalysisFR/actions/workflows/ci.yml)
 [![Daily forecast](https://github.com/JayaSaiKishore7/AirQuality_AnalysisFR/actions/workflows/daily-forecast.yml/badge.svg)](https://github.com/JayaSaiKishore7/AirQuality_AnalysisFR/actions/workflows/daily-forecast.yml)
-[![Python 3.10](https://img.shields.io/badge/python-3.10-blue)](https://www.python.org/)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 24-hour forecasts of hourly pollutant concentrations (NO₂, O₃, PM10, PM2.5, CO) for the ATMO SUD monitoring
