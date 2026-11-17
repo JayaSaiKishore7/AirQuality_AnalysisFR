@@ -56,29 +56,34 @@ The daily job downloads back to the newest stored observation day automatically 
 `fetch_geodair.py --days auto`). Forecasts for the missed days cannot be recreated, so forecast-skill
 history has a gap for them. To force a range: run *Daily forecast* manually with `days` = N.
 
-## Out-of-band monitoring (recommended, not yet set up)
+## Out-of-band monitoring
 
 The failure issue and the deploy check run on GitHub Actions, so they cannot report that Actions
-itself is not running. Use something outside GitHub to run, at least daily:
+itself is not running. `scripts/watch_live_page.ps1` checks the live page from outside GitHub and
+shows a Windows notification when it is unreachable, broken or older than 36 hours:
 
-```bash
-python scripts/check_deployed_page.py --url https://jayasaikishore-airquality-paca.static.hf.space/ --attempts 1
+```powershell
+.\scripts\watch_live_page.ps1               # check now
+.\scripts\watch_live_page.ps1 -Register     # Task Scheduler: daily 18:00, catches up after the PC was off
+.\scripts\watch_live_page.ps1 -Unregister   # remove it
 ```
 
-It exits non-zero when the page is unreachable, broken or older than 36 hours. Options: a scheduled
-task on your own machine, or a free uptime service with a script/keyword check.
+Log: `%LOCALAPPDATA%\AirQualityWatch\watch.log`. Limitation: it only runs while that PC is used.
+For checks that never sleep, run `python scripts/check_deployed_page.py --url <page>` from an
+always-on machine or an uptime service instead.
 
-## Branch protection (recommended, not yet applied)
+## Branch protection
 
-`main` is currently unprotected. Suggested ruleset for `main`:
+`main` is protected by the repository ruleset **"Protect main"** (Settings → Rules → Rulesets):
 
-- Require a pull request before merging (0 approvals is fine for a solo project).
-- Require status checks: `lint`, `test`, `docker` (from CI).
-- Block force pushes and deletion.
-- Bypass list: repository admin. The daily job pushes data commits to `main` with `GITHUB_TOKEN`,
-  which a "require pull request" rule would block; either add *GitHub Actions* to the bypass list
-  where available or have the job push with a GitHub App / deploy key that is on the bypass list.
-  Test with a manual *Daily forecast* run right after enabling.
+- Changes go through a pull request (no approvals needed), and CI checks `lint`, `test` and
+  `docker` must pass.
+- Force pushes and deleting `main` are blocked.
+- Bypass: *GitHub Actions* (always), so the daily job can push its data commits; *repository admin*
+  only when merging a pull request (e.g. when CI cannot run), never for direct pushes.
+
+To roll back through code, open a revert PR; to roll back the page fast, use the deploy workflow's
+`ref` input or the Space history (see *Rollback*), which the ruleset does not affect.
 
 ## Upgrading Python packages
 
