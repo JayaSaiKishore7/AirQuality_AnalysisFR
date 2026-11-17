@@ -1,9 +1,12 @@
 name: Daily forecast
 
-# The daily run happens on Hugging Face Jobs (scripts/daily_pipeline.py, set up with
-# scripts/setup_hf_job.py). This workflow is the manual fallback: Actions → Daily forecast → Run workflow.
-# Do not re-enable a schedule here while the Hugging Face job is active: both would push and deploy.
+# The main daily runner. All steps live in scripts/daily_pipeline.py, which the PC backup
+# (scripts/run_local_backup.ps1) also runs when GitHub has not published by the evening.
 on:
+  schedule:
+    # 04:30 UTC: yesterday's Geod'Air file is complete by then
+    # (GitHub often starts scheduled runs hours late; that is expected)
+    - cron: "30 4 * * *"
   workflow_dispatch:
     inputs:
       days:
@@ -33,29 +36,22 @@ jobs:
             constraints.txt
 
       - name: Install dependencies (exact versions from constraints.txt)
-        run: pip install -r requirements-pipeline.txt -c constraints.txt
+        run: pip install -r requirements-pipeline.txt huggingface_hub==2.4.0 -c constraints.txt
 
-      # Gate: code pushed to main is not published unless the tests pass on it,
-      # even if CI on that push did not run.
-      - name: Run tests
-        run: pytest -q
-
-      - name: Pull new Geod'Air data
+      - name: Run the daily pipeline
         env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+          GITHUB_ISSUES_TOKEN: ${{ github.token }}
+          GITHUB_REPO: ${{ github.repository }}
+          AQ_RUNNER: GitHub Actions run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           DAYS: ${{ inputs.days || 'auto' }}
-        run: python scripts/fetch_geodair.py --days "$DAYS"
-
-      - name: Make 24h forecasts
-        run: python scripts/make_forecasts.py
-
-      - name: Monitor drift and forecast skill
-        id: monitor
-        run: python scripts/monitor_drift.py --window-days 7
-
-      - name: Build static forecast page
-        env:
-          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-        run: python scripts/build_site.py
+          # a scheduled run stands down if the backup already published today; manual runs always run
+          SKIP: ${{ github.event_name == 'schedule' && '--skip-if-published-today' || '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python scripts/daily_pipeline.py --days "$DAYS" $SKIP
 
       - name: Upload Evidently report
         if: always()
@@ -66,54 +62,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Commit new data and forecasts
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data/live monitoring/drift_summary.json monitoring/history.csv site/index.html
-          if git diff --cached --quiet; then
-            echo "Nothing to commit"
-          else
-            git commit -m "Daily update: Geod'Air data, forecasts and drift report ($(date -u +%F))"
-            git pull --rebase
-            git push
-          fi
-
-      - name: Open or update drift issue
-        if: steps.monitor.outputs.drift == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          body=$(python - <<'EOF'
-          import json
-          s = json.load(open("monitoring/drift_summary.json", encoding="utf-8"))
-          d = s["drift"]
-          cols = [c for c, v in d["columns"].items() if v["drifted"]]
-          skill = s.get("skill") or {}
-          print(f"Data drift detected on {s['run_date']} (window {s['window']['start']} to {s['window']['end']}).\n")
-          print(f"- Drifted columns: {d['n_drifted']}/{d['n_columns']} ({', '.join(cols)})")
-          if skill:
-              print(f"- Forecast MAE {skill['mae']} vs persistence {skill['persistence_mae']}")
-          print(f"\nFull Evidently report: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
-          EOF
-          )
-          gh label create data-drift --color D93F0B --description "Raised by the daily drift monitor" 2>/dev/null || true
-          issue=$(gh issue list --label data-drift --state open --json number --jq '.[0].number')
-          if [ -n "$issue" ]; then
-            gh issue comment "$issue" --body "$body"
-          else
-            gh issue create --title "Data drift detected" --label data-drift --body "$body"
-          fi
-
-  deploy:
-    needs: update
-    uses: ./.github/workflows/deploy-hf.yml
-    secrets: inherit
-
-  # A failed run leaves yesterday's page live; make sure someone hears about it.
-  # (This cannot fire if Actions itself is unavailable, e.g. a billing lock: see docs/RELEASE.md.)
+  # daily_pipeline.py raises the issue for failures inside the pipeline; this covers the rest
+  # (checkout, install). It cannot fire if Actions itself is unavailable: the PC backup covers that.
   report-failure:
-    needs: [update, deploy]
+    needs: update
     if: failure()
     runs-on: ubuntu-latest
     steps:
@@ -123,7 +75,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          body="Daily forecast run failed on $(date -u +%F): update=${{ needs.update.result }}, deploy=${{ needs.deploy.result }}. The live page still shows the previous forecast. Logs: $RUN_URL"
+          body="Daily forecast run failed on $(date -u +%F). Logs: $RUN_URL"
           gh label create pipeline-failure --color B60205 --description "Raised when the daily pipeline fails" 2>/dev/null || true
           issue=$(gh issue list --label pipeline-failure --state open --json number --jq '.[0].number')
           if [ -n "$issue" ]; then

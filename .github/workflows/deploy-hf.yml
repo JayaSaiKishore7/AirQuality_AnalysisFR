@@ -15,7 +15,6 @@ on:
       ref:
         description: "Commit SHA, tag or branch whose site/index.html to publish (an older commit = rollback)"
         default: main
-  workflow_call:
 
 permissions:
   contents: read
@@ -30,7 +29,6 @@ jobs:
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
-      # the daily job pushes the new page to main before calling this workflow
       DEPLOY_REF: ${{ inputs.ref || 'main' }}
     steps:
       - name: Check configuration
@@ -76,17 +74,15 @@ jobs:
         if: steps.cfg.outputs.enabled == 'true'
         run: python scripts/deploy_space.py --folder space --message "Forecast page from $DEPLOY_SHA ($DEPLOY_REF)"
 
-      # The page visitors get must be the one just built. The daily run also requires it
-      # to be fresh; manual deploys and rollbacks may publish an older forecast on purpose.
+      # The page visitors get must be the one just published. No freshness limit:
+      # manual deploys and rollbacks may publish an older forecast on purpose.
       - name: Verify the deployed page
         if: steps.cfg.outputs.enabled == 'true'
         env:
           HOST: ${{ steps.upload.outputs.host }}
-          # the manually run daily workflow (fallback runner) must publish a fresh page; other deploys may be old on purpose
-          MAX_AGE: ${{ github.workflow == 'Daily forecast' && '36' || '0' }}
         run: |
           python scripts/check_deployed_page.py \
             --url "https://huggingface.co/spaces/$HF_SPACE_ID/resolve/main/index.html" \
             --url "$HOST/" \
-            --expect space/index.html --max-age-hours "$MAX_AGE"
+            --expect space/index.html --max-age-hours 0
           echo "Live: $HOST (page from \`$DEPLOY_REF\` = $DEPLOY_SHA)" >> "$GITHUB_STEP_SUMMARY"

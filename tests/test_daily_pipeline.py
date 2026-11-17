@@ -27,7 +27,7 @@ def test_drift_issue_body_lists_drifted_columns_and_skill():
     assert "Data drift detected on 2026-11-17 (window 2026-11-10 to 2026-11-17)." in body
     assert "2/9 (valeur, lag_1)" in body
     assert "Forecast MAE 7.1 vs persistence 9.4" in body
-    assert "Hugging Face Jobs" in body
+    assert pipeline.drift_issue_body(SUMMARY, where="GitHub Actions run X").endswith("Run by GitHub Actions run X.")
 
 
 def test_drift_issue_body_without_skill():
@@ -37,6 +37,7 @@ def test_drift_issue_body_without_skill():
 
 def test_issues_are_skipped_without_token(monkeypatch, capsys):
     monkeypatch.delenv("GITHUB_ISSUES_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
     def no_network(*a, **k):
         raise AssertionError("must not call GitHub without a token")
@@ -44,6 +45,21 @@ def test_issues_are_skipped_without_token(monkeypatch, capsys):
     monkeypatch.setattr(pipeline.requests, "Session", no_network)
     pipeline.upsert_issue("o/r", "data-drift", "D93F0B", "t", "b")
     assert "not raising" in capsys.readouterr().out
+
+
+def test_published_today_reads_the_live_page(monkeypatch):
+    from airquality.site import render_page
+
+    class Resp:
+        text = render_page({"issued_at": "2026-11-17 05:01:00", "pollutants": [], "units": {}, "series": [],
+                            "monitoring": None, "history": []})
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(pipeline.requests, "get", lambda *a, **k: Resp())
+    assert pipeline.published_today("o/space", "2026-11-17")
+    assert not pipeline.published_today("o/space", "2026-11-18")
 
 
 def test_deploy_requires_credentials(monkeypatch):
