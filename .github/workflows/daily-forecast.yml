@@ -48,9 +48,18 @@ jobs:
           DAYS: ${{ inputs.days || 'auto' }}
           # a scheduled run stands down if the backup already published today; manual runs always run
           SKIP: ${{ github.event_name == 'schedule' && '--skip-if-published-today' || '' }}
+          # main is protected by a ruleset that only deploy keys may bypass, so push with one.
+          # Without the secret, the job's own token is used (works only while main is unprotected).
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$DEPLOY_KEY" ]; then
+            install -m 600 /dev/null "$RUNNER_TEMP/deploy_key"
+            printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy_key"
+            export DEPLOY_KEY_FILE="$RUNNER_TEMP/deploy_key"
+          fi
+          unset DEPLOY_KEY
           python scripts/daily_pipeline.py --days "$DAYS" $SKIP
 
       - name: Upload Evidently report

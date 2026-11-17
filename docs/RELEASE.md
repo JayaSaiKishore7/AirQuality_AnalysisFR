@@ -111,10 +111,11 @@ that file by itself: import it under Settings → Rules → Rulesets → New rul
 - Changes go through a pull request (no approvals needed), and CI checks `lint`, `test` and
   `docker` must pass.
 - Force pushes and deleting `main` are blocked.
-- Bypass: *GitHub Actions* (always), so the daily workflow can push its data commits; *deploy keys*
-  (always), for the backup PC (only deploy keys with write access can push at all; keep it to the one
-  `airquality-backup` key); *repository admin* only when merging a pull request (e.g. when CI cannot
-  run), never for direct pushes.
+- Bypass: *deploy keys* (always), so the daily data commits can be pushed: the workflow pushes with
+  the `DEPLOY_KEY` secret and the backup PC with its local key (both the `airquality-backup` key; only
+  deploy keys with write access can push at all, so keep it to that one); *repository admin* only when
+  merging a pull request (e.g. when CI cannot run), never for direct pushes.
+  (Personal repositories cannot list the GitHub Actions app as a bypass actor, hence the deploy key.)
 
 To roll back through code, open a revert PR; to roll back the page fast, use the deploy workflow's
 `ref` input or the Space history (see *Rollback*), which the ruleset does not affect.
@@ -139,7 +140,8 @@ Open a pull request with the new `constraints.txt` so CI (including the Docker s
 |---|---|---|---|
 | `HF_TOKEN` | Actions secret | daily workflow, `deploy-hf.yml` | Yes (write access to the Space) |
 | `HF_SPACE_ID` | Actions variable | daily workflow, `deploy-hf.yml` | Yes, e.g. `JayaSaiKishore/airquality-paca` |
-| `GITHUB_TOKEN` | automatic | daily workflow (push, issues) | provided by GitHub |
-| deploy key `airquality-backup` | repo *Deploy keys* + `%USERPROFILE%\.ssh\aq_deploy_key` | backup PC (push) | only for the backup |
+| `DEPLOY_KEY` | Actions secret | daily workflow (push) | Yes once the ruleset is active: private half of the `airquality-backup` deploy key |
+| `GITHUB_TOKEN` | automatic | daily workflow (issues; push while `main` is unprotected) | provided by GitHub |
+| deploy key `airquality-backup` | repo *Deploy keys* + `%USERPROFILE%\.ssh\aq_deploy_key` | daily workflow and backup PC (push) | Yes |
 | Hugging Face login | `hf auth login` on the backup PC | backup PC (deploy) | only for the backup |
 | `API_BASE`, `GEODAIR_BASE_URL`, `AQ_*`, `MLFLOW_TRACKING_URI` | environment | app, scripts | No, defaults in `.env.example` |
