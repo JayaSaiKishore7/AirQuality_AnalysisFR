@@ -1,22 +1,25 @@
-"""The whole daily pipeline in one command, for runners other than GitHub Actions.
+"""The whole daily pipeline in one command. Both runners use it:
 
-Hugging Face Jobs runs this every day (see scripts/setup_hf_job.py). It does what
-.github/workflows/daily-forecast.yml does:
+- GitHub Actions, daily (.github/workflows/daily-forecast.yml)
+- the backup on a PC (scripts/run_local_backup.ps1), which publishes only if GitHub has not
 
     tests (gate) -> fetch Geod'Air (auto-backfill) -> forecast -> drift/skill monitoring
     -> build page -> commit + push to GitHub -> deploy to the Space -> verify the live page
     -> drift issue; on any failure a pipeline-failure issue
 
     python scripts/daily_pipeline.py --dry-run     # everything except push, deploy and issues
+    python scripts/daily_pipeline.py --skip-if-published-today
 
 Environment (secrets come from the runner, never from the repository):
-  HF_TOKEN, HF_SPACE_ID   deploy to the Space
-  DEPLOY_KEY_B64          base64 of the GitHub deploy key (write access) used to push
-  GITHUB_ISSUES_TOKEN     optional fine-grained token (Issues: read/write) for drift/failure issues
+  HF_SPACE_ID             the Space, e.g. JayaSaiKishore/airquality-paca
+  HF_TOKEN                write token for the Space (else the `hf auth login` token is used)
+  DEPLOY_KEY_FILE         GitHub deploy key (write access) to push with; without it the existing
+                          git credentials are used (GitHub Actions' token)
+  GITHUB_ISSUES_TOKEN     token for drift/failure issues (GitHub Actions passes its own); optional
   GITHUB_REPO             owner/name, e.g. JayaSaiKishore7/AirQuality_AnalysisFR
+  AQ_RUNNER               where the run happened, quoted in issues
 """
 import argparse
-import base64
 import json
 import os
 import shutil
@@ -31,7 +34,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 COMMITTED = ["data/live", "monitoring/drift_summary.json", "monitoring/history.csv", "site/index.html"]
-RUNNER = "Hugging Face Jobs (scheduled job 'airquality-daily')"
+RUNNER = os.environ.get("AQ_RUNNER", "a local run")
 
 
 def step(name: str, cmd: list[str], **kw) -> subprocess.CompletedProcess:
@@ -44,19 +47,44 @@ def git(*args: str, **kw) -> subprocess.CompletedProcess:
 
 
 def setup_push(repo: str) -> None:
-    """Push to GitHub over SSH with the deploy key, as a bot identity."""
-    key_b64 = os.environ.get("DEPLOY_KEY_B64")
-    if not key_b64:
-        raise RuntimeError("DEPLOY_KEY_B64 is not set; cannot push to GitHub")
-    ssh_dir = Path.home() / ".ssh"
-    ssh_dir.mkdir(mode=0o700, exist_ok=True)
-    key = ssh_dir / "aq_deploy_key"
-    key.write_bytes(base64.b64decode(key_b64))
-    key.chmod(0o600)
-    os.environ["GIT_SSH_COMMAND"] = f"ssh -i {key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+    """With DEPLOY_KEY_FILE, push over SSH with that deploy key as a bot identity.
+
+    Otherwise keep the clone's own credentials and identity (GitHub Actions configures both).
+    """
+    key = os.environ.get("DEPLOY_KEY_FILE")
+    if not key:
+        return
+    if not Path(key).is_file():
+        raise RuntimeError(f"DEPLOY_KEY_FILE {key} not found")
+    key = Path(key).as_posix()
+    os.environ["GIT_SSH_COMMAND"] = f'ssh -i "{key}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
     git("remote", "set-url", "--push", "origin", f"git@github.com:{repo}.git")
     git("config", "user.name", "airquality-pipeline[bot]")
     git("config", "user.email", "airquality-pipeline@users.noreply.github.com")
+
+
+def hf_token_available() -> bool:
+    if os.environ.get("HF_TOKEN"):
+        return True
+    from huggingface_hub import get_token
+    return bool(get_token())
+
+
+def page_url(space: str) -> str:
+    return f"https://huggingface.co/spaces/{space}/resolve/main/index.html"
+
+
+def published_today(space: str, today: str) -> bool:
+    """True if the live page already carries a forecast issued today (UTC)."""
+    sys.path.insert(0, str(ROOT))
+    from airquality.site import page_data
+
+    r = requests.get(page_url(space), params={"t": datetime.now(UTC).timestamp()}, timeout=30,
+                     headers={"Cache-Control": "no-cache", "User-Agent": "airquality-pipeline"})
+    r.raise_for_status()
+    issued = (page_data(r.text) or {}).get("issued_at") or ""
+    print(f"Live page forecast issued: {issued or 'none'}")
+    return issued[:10] == today
 
 
 def commit_and_push(today: str) -> bool:
@@ -76,12 +104,12 @@ def deploy_and_verify(space: str) -> None:
         shutil.copy(ROOT / "site" / "index.html", tmp)
         shutil.copy(ROOT / "deploy" / "huggingface" / "README.md", tmp)
         out = step("Deploy to the Space", [PY, "scripts/deploy_space.py", "--space", space, "--folder", tmp,
-                                           "--message", f"Forecast page from {sha} (Hugging Face Jobs)"],
-                   stdout=subprocess.PIPE, text=True)  # stderr still streams to the job log
+                                           "--message", f"Forecast page from {sha} ({RUNNER})"],
+                   stdout=subprocess.PIPE, text=True)  # stderr still streams to the log
     print(out.stdout, end="")
     host = out.stdout.strip().rsplit("(", 1)[-1].rstrip(")")
     step("Verify the deployed page", [PY, "scripts/check_deployed_page.py",
-                                      "--url", f"https://huggingface.co/spaces/{space}/resolve/main/index.html",
+                                      "--url", page_url(space),
                                       "--url", f"{host}/", "--expect", "site/index.html", "--max-age-hours", "36"])
 
 
@@ -100,7 +128,7 @@ def drift_issue_body(summary: dict, where: str = RUNNER) -> str:
 
 def upsert_issue(repo: str, label: str, color: str, title: str, body: str) -> None:
     """Comment on the open issue with `label`, or open one. Skipped without GITHUB_ISSUES_TOKEN."""
-    token = os.environ.get("GITHUB_ISSUES_TOKEN")
+    token = os.environ.get("GITHUB_ISSUES_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if not token:
         print(f"GITHUB_ISSUES_TOKEN not set; not raising the '{label}' issue")
         return
@@ -121,6 +149,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dry-run", action="store_true", help="skip push, deploy and issues")
     parser.add_argument("--days", default="auto", help="passed to fetch_geodair.py")
+    parser.add_argument("--skip-if-published-today", action="store_true",
+                        help="do nothing if the live page already has today's forecast (another runner did it)")
     args = parser.parse_args()
 
     repo = os.environ.get("GITHUB_REPO", "JayaSaiKishore7/AirQuality_AnalysisFR")
@@ -129,8 +159,14 @@ def main() -> int:
     current = "setup"
     try:
         if not args.dry_run:
-            if not (space and os.environ.get("HF_TOKEN")):
-                raise RuntimeError("HF_TOKEN and HF_SPACE_ID must be set to deploy")
+            if not (space and hf_token_available()):
+                raise RuntimeError("HF_SPACE_ID and a Hugging Face token (HF_TOKEN or `hf auth login`) are needed")
+            if args.skip_if_published_today:
+                current = "check live page"
+                if published_today(space, today):
+                    print("Today's forecast is already published; nothing to do")
+                    return 0
+            current = "setup"
             setup_push(repo)
         current = "tests"
         step("Run tests (gate)", [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider"])
