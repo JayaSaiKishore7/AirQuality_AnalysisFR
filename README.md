@@ -108,21 +108,25 @@ Baseline: **persistence**, which repeats the last measured value. A useful model
 | Random Forest | 3.66 | 6.36 | 0.933 |
 | Persistence baseline | 3.99 | 7.20 | 0.915 |
 
-**24 hours ahead**, live Geod'Air data (three forecasts issued 12–14 Oct 2026, 6,318 hourly values), mean absolute error:
+**24 hours ahead**, live Geod'Air data: 20 daily forecasts issued 16 Oct – 4 Nov 2026, scored against what was
+then measured (40,871 hourly values). Mean absolute error:
 
 | Pollutant | XGBoost | Persistence | Improvement |
 |---|---|---|---|
-| O₃ (µg/m³) | 14.4 | 25.2 | 43% |
-| NO₂ (µg/m³) | 7.4 | 10.7 | 30% |
-| PM10 (µg/m³) | 4.9 | 6.3 | 23% |
-| CO (mg/m³) | 0.051 | 0.057 | 12% |
-| PM2.5 (µg/m³) | 3.1 | 3.1 | no gain (−1%) |
+| PM10 (µg/m³) | 5.2 | 7.4 | 30% |
+| NO₂ (µg/m³) | 7.6 | 10.8 | 29% |
+| O₃ (µg/m³) | 14.7 | 20.2 | 27% |
+| CO (mg/m³) | 0.051 | 0.059 | 13% |
+| PM2.5 (µg/m³) | 3.4 | 3.8 | 10% |
+| **All** | | | **26%** |
 
-The live comparison covers only three days so far; the daily pipeline keeps scoring every forecast against the
-measurements and publishes the running error on the live page.
+The model beat persistence on 18 of the 20 days (daily improvement from −17% to +56%, median 27%).
+No forecasts exist for 5–16 Nov 2026, when the daily job did not run. The pipeline keeps scoring every
+forecast and publishes the running error for the last 7 days on the live page.
 
 **Known limitations:**
-- PM2.5 forecasts are no better than persistence yet.
+- PM2.5 gains the least (10%) and CO is measured at few stations (820 values above).
+- Some days the model is worse than persistence (2 of 20 days so far).
 - Live data is raw (unvalidated) while the training data is validated, which is one reason drift is detected.
 - Only stations seen during training can be forecast.
 
