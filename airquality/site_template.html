@@ -50,6 +50,9 @@
   td.num, th.num { text-align: right; }
   tr.pick { cursor: pointer; } tr.pick:hover td { background: color-mix(in srgb, var(--measured) 8%, transparent); }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  .stale { margin: 16px 0 0; padding: 10px 14px; border-radius: 10px; font-weight: 600;
+           border: 1px solid var(--warn); color: var(--warn);
+           background: color-mix(in srgb, var(--warn) 10%, var(--panel)); }
   footer { margin-top: 28px; color: var(--muted); font-size: 0.82rem; }
   footer a { color: inherit; }
 </style>
@@ -60,6 +63,8 @@
     <h1>PACA Air Quality Forecast</h1>
     <p id="subtitle">Next 24 hours for ATMO SUD monitoring stations</p>
   </header>
+
+  <div class="stale" id="stale" role="status" hidden></div>
 
   <div class="kpis" id="kpis"></div>
 
@@ -124,6 +129,18 @@
   const m = D.monitoring || {};
   const drift = m.drift || null, skill = m.skill || null;
   const issued = D.issued_at ? D.issued_at.replace("T", " ").slice(0, 16) + " UTC" : "–";
+
+  // The page is rebuilt daily; if the pipeline stops, say so instead of showing old forecasts as current.
+  const STALE_HOURS = 36;
+  if (D.issued_at) {
+    const ageH = (Date.now() - Date.parse(D.issued_at.replace(" ", "T") + "Z")) / 3.6e6;
+    if (ageH > STALE_HOURS) {
+      const days = Math.floor(ageH / 24);
+      $("stale").textContent = "These forecasts are out of date: issued " + issued + " (" +
+        (days >= 2 ? days + " days" : Math.round(ageH) + " hours") + " ago). The daily update has not run since.";
+      $("stale").hidden = false;
+    }
+  }
   const kpis = [
     ["Forecast issued", issued, D.series.length + " station/pollutant series"],
     ["Data drift", drift ? (drift.dataset_drift ? '<span class="warn">Detected</span>' : '<span class="ok">None</span>') : "–",

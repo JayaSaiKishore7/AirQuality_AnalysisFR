@@ -48,8 +48,8 @@ def select_reference(reference: pd.DataFrame, current: pd.DataFrame, months, min
     when that leaves fewer than `min_rows` rows.
     """
     near = {((m + d - 1) % 12) + 1 for m in months for d in (-1, 0, 1)}
-    series = set(zip(current[config.COL_SITE], current[config.COL_POLLUTANT]))
-    in_series = pd.Series(list(zip(reference[config.COL_SITE], reference[config.COL_POLLUTANT])),
+    series = set(zip(current[config.COL_SITE], current[config.COL_POLLUTANT], strict=True))
+    in_series = pd.Series(list(zip(reference[config.COL_SITE], reference[config.COL_POLLUTANT], strict=True)),
                           index=reference.index).isin(series)
     in_season = reference["month"].isin(near) if "month" in reference else pd.Series(True, index=reference.index)
     for mask in (in_season & in_series, in_season, in_series):

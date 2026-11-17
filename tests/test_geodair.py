@@ -71,6 +71,18 @@ def test_prune_keeps_recent_and_non_date_files(tmp_path):
     assert sorted(p.name for p in tmp_path.iterdir()) == ["2026-10-10.csv", "latest.csv"]
 
 
+def test_days_to_fetch_backfills_missed_runs(tmp_path):
+    today = date(2026, 11, 17)
+    assert geodair.days_to_fetch(today, tmp_path) == 30  # nothing stored yet
+    (tmp_path / "2026-11-16.csv").write_text("x")
+    assert geodair.days_to_fetch(today, tmp_path) == 3  # normal daily run
+    (tmp_path / "2026-11-16.csv").unlink()
+    (tmp_path / "2026-11-04.csv").write_text("x")
+    (tmp_path / "latest.csv").write_text("x")
+    assert geodair.days_to_fetch(today, tmp_path) == 14  # 13 missed days + the newest stored day
+    assert geodair.days_to_fetch(date(2027, 3, 1), tmp_path) == 30  # capped
+
+
 def test_load_observations_since(tmp_path):
     for d in ["2026-10-10", "2026-10-14"]:
         pd.DataFrame({config.COL_DATE: [f"{d} 00:00"], config.COL_VALUE: [1.0],

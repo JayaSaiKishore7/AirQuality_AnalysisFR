@@ -5,6 +5,7 @@ charts are drawn in the browser by Plotly.js, so it can be hosted anywhere
 static (a Hugging Face static Space) without any Python server.
 """
 import json
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -83,6 +84,41 @@ def render_page(data: dict, repo_url: str = "") -> str:
     return (TEMPLATE_PATH.read_text(encoding="utf-8")
             .replace("__SITE_DATA__", payload)
             .replace("__REPO_URL__", repo_url))
+
+
+def page_data(html: str) -> dict | None:
+    """The JSON embedded in a rendered page, or None if it is not one of our pages."""
+    m = re.search(r'<script type="application/json" id="site-data">(.*?)</script>', html, re.S)
+    if not m:
+        return None
+    try:
+        return json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return None
+
+
+def page_problem(html: str, now: pd.Timestamp, max_age_hours: float | None = None,
+                 expected_issued_at: str | None = None) -> str | None:
+    """Why a deployed page is not healthy, or None if it is.
+
+    `now` is naive UTC, like `issued_at`. `max_age_hours=None` skips the freshness
+    check (e.g. when deliberately redeploying an older version).
+    """
+    data = page_data(html)
+    if data is None:
+        return "page has no readable forecast data"
+    issued = data.get("issued_at")
+    if expected_issued_at is not None and issued != expected_issued_at:
+        return f"page shows forecast issued {issued}, expected {expected_issued_at}"
+    if max_age_hours is not None:
+        if not issued:
+            return "page has no forecasts"
+        age_h = (now - pd.Timestamp(issued)).total_seconds() / 3600
+        if age_h > max_age_hours:
+            return f"forecast issued {issued} is {age_h:.0f}h old (limit {max_age_hours:.0f}h)"
+    if issued and not data.get("series"):
+        return "page has an issue time but no forecast series"
+    return None
 
 
 def build_site(out_dir: Path = SITE_DIR, repo_url: str = "") -> Path:

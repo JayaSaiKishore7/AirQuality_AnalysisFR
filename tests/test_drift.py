@@ -51,7 +51,7 @@ def test_select_reference_keeps_season_and_live_series():
 
     sel = select_reference(ref, current, months=[12], min_rows=10)
     assert set(sel["month"]) == {11, 12, 1}  # neighbours wrap around the year
-    assert set(zip(sel[config.COL_SITE], sel[config.COL_POLLUTANT])) == {("FR02008", "NO2")}
+    assert set(zip(sel[config.COL_SITE], sel[config.COL_POLLUTANT], strict=True)) == {("FR02008", "NO2")}
 
     # too few comparable rows: fall back rather than test against a handful
     assert len(select_reference(ref, current, months=[12], min_rows=10_000)) == len(ref)

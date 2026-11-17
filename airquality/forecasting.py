@@ -46,7 +46,7 @@ def forecast_24h(model, encoders: dict, req: dict) -> list[dict]:
     fc = recursive_forecast(model, pd.Series([start]), static, history)
     return [
         {"forecast_time": t.isoformat(), "predicted_valeur": float(y)}
-        for t, y in zip(pd.to_datetime(fc["forecast_time"]), fc["predicted_valeur"])
+        for t, y in zip(pd.to_datetime(fc["forecast_time"]), fc["predicted_valeur"], strict=True)
     ]
 
 

@@ -1,0 +1,12 @@
+# Keeps the SHA-pinned GitHub Actions up to date; each update arrives as a PR that CI tests.
+# Python packages are pinned in constraints.txt and upgraded deliberately (see docs/RELEASE.md),
+# because the pickled model depends on exact scikit-learn / xgboost versions.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

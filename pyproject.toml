@@ -1,3 +1,12 @@
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+# bug-finding rules only (pyflakes, syntax/runtime errors, bugbear); style is not gated in CI
+select = ["E4", "E7", "E9", "F", "B"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
