@@ -8,7 +8,8 @@ name: Deploy to Hugging Face Spaces
 on:
   push:
     branches: [main]
-    paths: ["site/**", "deploy/huggingface/**", ".github/workflows/deploy-hf.yml"]
+    # not site/**: the daily runner deploys the page itself; this redeploys when the card or workflow changes
+    paths: ["deploy/huggingface/**", ".github/workflows/deploy-hf.yml"]
   workflow_dispatch:
     inputs:
       ref:
@@ -73,28 +74,7 @@ jobs:
       - name: Upload to Space
         id: upload
         if: steps.cfg.outputs.enabled == 'true'
-        run: |
-          python - <<'EOF'
-          import os
-          from huggingface_hub import HfApi
-          api = HfApi(token=os.environ["HF_TOKEN"])
-          space = os.environ["HF_SPACE_ID"]
-          sha = os.environ["DEPLOY_SHA"]
-          api.create_repo(space, repo_type="space", space_sdk="static", exist_ok=True)
-          api.upload_folder(
-              repo_id=space,
-              repo_type="space",
-              folder_path="space",
-              commit_message=f"Forecast page from {sha} ({os.environ['DEPLOY_REF']})",
-              # remove anything else (e.g. files from the earlier Docker attempt)
-              delete_patterns=["*"],
-          )
-          info = api.space_info(space)
-          host = info.host or f"https://{info.subdomain}.static.hf.space"
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-              f.write(f"host={host}\n")
-          print(f"Deployed {sha} to https://huggingface.co/spaces/{space} ({host})")
-          EOF
+        run: python scripts/deploy_space.py --folder space --message "Forecast page from $DEPLOY_SHA ($DEPLOY_REF)"
 
       # The page visitors get must be the one just built. The daily run also requires it
       # to be fresh; manual deploys and rollbacks may publish an older forecast on purpose.
@@ -102,7 +82,8 @@ jobs:
         if: steps.cfg.outputs.enabled == 'true'
         env:
           HOST: ${{ steps.upload.outputs.host }}
-          MAX_AGE: ${{ github.event_name == 'schedule' && '36' || '0' }}
+          # the manually run daily workflow (fallback runner) must publish a fresh page; other deploys may be old on purpose
+          MAX_AGE: ${{ github.workflow == 'Daily forecast' && '36' || '0' }}
         run: |
           python scripts/check_deployed_page.py \
             --url "https://huggingface.co/spaces/$HF_SPACE_ID/resolve/main/index.html" \

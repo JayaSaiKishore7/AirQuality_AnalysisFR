@@ -28,7 +28,7 @@ stations in the Provence-Alpes-Côte d'Azur (PACA) region, refreshed every day f
 flowchart LR
     G["Geod'Air<br/>hourly measurements"] --> F
 
-    subgraph GA["GitHub Actions: daily at 04:30 UTC"]
+    subgraph GA["Hugging Face Jobs: daily at 04:30 UTC"]
         F["fetch_geodair.py<br/>download + clean"] --> P["make_forecasts.py<br/>XGBoost, 24h ahead"]
         P --> M["monitor_drift.py<br/>Evidently drift +<br/>forecast skill"]
         M --> S["build_site.py<br/>static HTML page"]
@@ -48,7 +48,8 @@ flowchart LR
 ```
 
 Every push and pull request runs lint, the test suite, a preview build of the page and a Docker build +
-smoke test (`ci.yml`). The daily job runs the tests again before publishing, checks the live page after
+smoke test on GitHub Actions (`ci.yml`). The daily pipeline runs as a scheduled Hugging Face Job
+(`scripts/daily_pipeline.py`): it runs the tests again before publishing, checks the live page after
 deploying, and opens an issue if anything fails. Release process, rollback and secrets:
 [docs/RELEASE.md](docs/RELEASE.md).
 

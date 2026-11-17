@@ -15,24 +15,48 @@ pull request / push to main ─► CI (ci.yml)
                                   docker    builds both images, waits for their health checks,
                                             runs scripts/smoke_test_api.py inside the API container
 
-daily 04:30 UTC (GitHub often starts it hours late) ─► Daily forecast (daily-forecast.yml)
-   install (constraints.txt) → pytest (gate) → fetch Geod'Air (auto-backfills missed days)
-   → forecast → drift/skill monitoring → build site/index.html → commit to main
-   → deploy-hf.yml: upload page to the Space → verify the live page matches and is < 36h old
-   → on any failure: open/comment a "pipeline-failure" issue
+daily 04:30 UTC ─► Hugging Face scheduled Job "airquality-daily" (scripts/daily_pipeline.py)
+   fresh clone of main → install (constraints.txt) → pytest (gate)
+   → fetch Geod'Air (auto-backfills missed days) → forecast → drift/skill monitoring
+   → build site/index.html → commit + push to main (deploy key)
+   → upload page to the Space → verify the live page matches and is < 36h old
+   → drift issue; on any failure: open/comment a "pipeline-failure" issue
 ```
 
-`deploy-hf.yml` also runs when `site/**` or the Space card changes on `main`, and manually.
+The GitHub *Daily forecast* workflow runs the same steps but has no schedule: it is the manual
+fallback (Actions → Daily forecast → Run workflow). Never run both on a schedule; they would both push.
+`deploy-hf.yml` runs when the Space card or the workflow changes on `main`, and manually (rollback).
+
+## Daily runner: Hugging Face Jobs
+
+Set up or replace it from your own terminal (it asks for secrets interactively):
+
+```bash
+pip install huggingface_hub==2.4.0
+hf auth login                          # the account that pays for Jobs (needs a positive credit balance)
+python scripts/setup_hf_job.py --run-now
+```
+
+The script generates a deploy key and shows the public half to add under the repo's
+*Settings → Deploy keys* (allow write access), asks for the Space token and an optional GitHub token
+(fine-grained, this repo only, *Issues: read and write*) for issues, then creates the scheduled Job
+(cpu-basic, about 5 minutes a day). It prints the job id; manage it with
+`hf jobs scheduled inspect|suspend|resume|trigger|delete <id>`. Each run's logs are on its job page.
+
+To check the pipeline without publishing anything: `python scripts/daily_pipeline.py --dry-run`
+(writes data and `site/index.html` in your working copy; discard with `git checkout -- data site monitoring`).
 
 ## What happens when something fails
 
 | Failure | Effect | What to do |
 |---|---|---|
-| Tests fail in the daily run | Nothing fetched, committed or deployed; yesterday's page stays live | Fix on a branch, merge, re-run *Daily forecast* |
+| Tests fail in the daily run | Nothing fetched, committed or deployed; yesterday's page stays live | Fix on a branch, merge, `hf jobs scheduled trigger <id>` |
 | Geod'Air unavailable / no data | Same; the next run backfills automatically (`--days auto`, up to 30 days) | Usually nothing |
-| Upload to the Space fails | New data is committed to the repo, the page is not updated | Re-run *Deploy to Hugging Face Spaces* |
+| Push to GitHub fails (deploy key removed/expired) | Nothing deployed; issue opened | Rerun `scripts/setup_hf_job.py` (new key) |
+| Upload to the Space fails | New data is committed to the repo, the page is not updated | Trigger the job again, or run *Deploy to Hugging Face Spaces* |
 | Deployed page check fails | Run fails, issue opened; the page may be the new one, broken or old | Open the Space; roll back if broken |
-| GitHub Actions unavailable (e.g. billing lock, Nov 2026) | **Nothing runs and no issue can be opened.** The page shows a "forecasts are out of date" banner after 36h | See *Out-of-band monitoring* |
+| Hugging Face Jobs unavailable or out of credits | **Nothing runs and no issue can be opened.** The page shows a "forecasts are out of date" banner after 36h | Add credits; or run the GitHub *Daily forecast* workflow manually. See *Out-of-band monitoring* |
+| GitHub Actions unavailable (e.g. billing lock, Nov 2026) | Daily updates continue (they run on Hugging Face); CI on pull requests and manual deploy/rollback workflows do not run | Fix billing; roll back via the Space history meanwhile |
 
 ## Rollback
 
@@ -45,8 +69,9 @@ Pick the last good commit: on GitHub, *History* of `site/index.html`, or
    if the problem is in the code, revert the code on `main` first (option 3).
 2. **Without GitHub Actions** (e.g. Actions is down): on the Space, *Files → History*, open the
    good commit and revert to it; or clone the Space with your HF token, `git revert <bad sha>`, push.
-3. **Bad code:** `git revert <sha>` in a pull request, merge once CI passes, then re-run
-   *Daily forecast* (or wait for the schedule).
+3. **Bad code:** `git revert <sha>` in a pull request, merge once CI passes, then
+   `hf jobs scheduled trigger <id>` (or wait for the schedule). The job always runs the current `main`.
+   To stop daily runs meanwhile: `hf jobs scheduled suspend <id>`.
 
 Data needs no separate rollback: every CSV, forecast and the model are in git history.
 
@@ -58,8 +83,8 @@ history has a gap for them. To force a range: run *Daily forecast* manually with
 
 ## Out-of-band monitoring
 
-The failure issue and the deploy check run on GitHub Actions, so they cannot report that Actions
-itself is not running. `scripts/watch_live_page.ps1` checks the live page from outside GitHub and
+The failure issue and the deploy check run inside the daily job, so they cannot report that the
+job itself is not running (out of Hugging Face credits, job suspended, platform outage). `scripts/watch_live_page.ps1` checks the live page from outside GitHub and
 shows a Windows notification when it is unreachable, broken or older than 36 hours:
 
 ```powershell
@@ -82,8 +107,10 @@ that file by itself: import it under Settings → Rules → Rulesets → New rul
 - Changes go through a pull request (no approvals needed), and CI checks `lint`, `test` and
   `docker` must pass.
 - Force pushes and deleting `main` are blocked.
-- Bypass: *GitHub Actions* (always), so the daily job can push its data commits; *repository admin*
-  only when merging a pull request (e.g. when CI cannot run), never for direct pushes.
+- Bypass: *deploy keys* (always), so the Hugging Face job can push its data commits (only deploy keys
+  with write access can push at all; keep it to the one `hf-jobs-airquality` key); *GitHub Actions*
+  (always), for the fallback workflow; *repository admin* only when merging a pull request (e.g. when
+  CI cannot run), never for direct pushes.
 
 To roll back through code, open a revert PR; to roll back the page fast, use the deploy workflow's
 `ref` input or the Space history (see *Rollback*), which the ruleset does not affect.
@@ -106,7 +133,11 @@ Open a pull request with the new `constraints.txt` so CI (including the Docker s
 
 | Name | Kind | Used by | Required |
 |---|---|---|---|
-| `HF_TOKEN` | Actions secret | `deploy-hf.yml` | Yes for deployment (write token for the Space); deploy is skipped without it |
-| `HF_SPACE_ID` | Actions variable | `deploy-hf.yml` | Yes for deployment, e.g. `JayaSaiKishore/airquality-paca` |
-| `GITHUB_TOKEN` | automatic | daily job (commit, issues) | provided by GitHub |
+| `HF_TOKEN` | HF Job secret | `daily_pipeline.py` | Yes (write access to the Space) |
+| `DEPLOY_KEY_B64` | HF Job secret | `daily_pipeline.py` | Yes, private half of the `hf-jobs-airquality` deploy key (created by `setup_hf_job.py`) |
+| `GITHUB_ISSUES_TOKEN` | HF Job secret | `daily_pipeline.py` | No; without it drift/failure issues are skipped |
+| `HF_SPACE_ID`, `GITHUB_REPO` | HF Job env | `daily_pipeline.py` | set by `setup_hf_job.py` |
+| `HF_TOKEN` | Actions secret | `deploy-hf.yml`, fallback workflow | Yes for GitHub-side deploys; skipped without it |
+| `HF_SPACE_ID` | Actions variable | `deploy-hf.yml` | Yes for GitHub-side deploys, e.g. `JayaSaiKishore/airquality-paca` |
+| `GITHUB_TOKEN` | automatic | fallback workflow (commit, issues) | provided by GitHub |
 | `API_BASE`, `GEODAIR_BASE_URL`, `AQ_*`, `MLFLOW_TRACKING_URI` | environment | app, scripts | No, defaults in `.env.example` |

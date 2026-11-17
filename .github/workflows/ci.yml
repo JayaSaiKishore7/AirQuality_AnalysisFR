@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # the daily data commit (data, monitoring, page) does not need CI
+    paths-ignore: ["data/live/**", "monitoring/**", "site/**"]
   pull_request:
   workflow_dispatch:
 
