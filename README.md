@@ -20,7 +20,10 @@ stations in the Provence-Alpes-Côte d'Azur (PACA) region, refreshed every day f
 - **Forecasts the next 24 hours** for about 90 station/pollutant series with an XGBoost model.
 - **Monitors itself.** [Evidently](https://www.evidentlyai.com/) checks whether recent data has drifted away from the training
   data, and old forecasts are scored against what was actually measured. Drift opens a GitHub issue automatically.
-- **Publishes the results** as a static page (Plotly charts and map) on a free Hugging Face Space.
+- **Publishes the results** as a static page (Plotly charts and map) on a free Hugging Face Space,
+  then checks that the live page really shows the new forecast.
+- **Fails safely and loudly.** Tests gate every publish; a failed run leaves the previous page online, opens a
+  GitHub issue, and the page itself warns visitors when its forecast is more than 36 hours old.
 
 ## Architecture
 
@@ -28,15 +31,18 @@ stations in the Provence-Alpes-Côte d'Azur (PACA) region, refreshed every day f
 flowchart LR
     G["Geod'Air<br/>hourly measurements"] --> F
 
-    subgraph GA["GitHub Actions: daily at 04:30 UTC"]
-        F["fetch_geodair.py<br/>download + clean"] --> P["make_forecasts.py<br/>XGBoost, 24h ahead"]
+    subgraph GA["daily_pipeline.py: GitHub Actions 04:30 UTC<br/>(backup PC at 20:00 if GitHub missed the day)"]
+        TG["pytest<br/>(gate)"] --> F["fetch_geodair.py<br/>download + backfill"]
+        F --> P["make_forecasts.py<br/>XGBoost, 24h ahead"]
         P --> M["monitor_drift.py<br/>Evidently drift +<br/>forecast skill"]
         M --> S["build_site.py<br/>static HTML page"]
     end
 
     S --> R[("Git repository<br/>data, forecasts,<br/>monitoring history")]
     S --> H["Hugging Face<br/>static Space"]
+    H --> V["check_deployed_page.py<br/>live page = new build?"]
     M -. "drift detected" .-> I["GitHub issue"]
+    GA -. "any failure" .-> I
 
     subgraph LOCAL["Local / Docker Compose"]
         T["preprocess_data.py<br/>train_model.py + MLflow"] --> MOD[("models/")]
@@ -47,11 +53,22 @@ flowchart LR
     MOD --> P
 ```
 
-Every push and pull request runs lint, the test suite, a preview build of the page and a Docker build +
-smoke test on GitHub Actions (`ci.yml`). The daily pipeline (`scripts/daily_pipeline.py`) runs on
-GitHub Actions, with a free backup on a PC if GitHub misses a day: it runs the tests again before
-publishing, checks the live page after deploying, and opens an issue if anything fails. Release process, rollback and secrets:
-[docs/RELEASE.md](docs/RELEASE.md).
+## Release and operations
+
+Everything runs on free tiers. Full runbook (failure handling, rollback, secrets): [docs/RELEASE.md](docs/RELEASE.md).
+
+- **Pull requests:** `main` is protected; changes go through a pull request and CI must pass:
+  `lint` (ruff), `test` (pytest with the exact versions in `constraints.txt`), and `docker` (both images
+  built, health-checked and smoke-tested with a real forecast). CI also uploads a **preview** of the page
+  built from the pull request.
+- **Daily update:** GitHub Actions runs [`scripts/daily_pipeline.py`](scripts/daily_pipeline.py): tests,
+  fetch (automatically backfilling missed days), forecast, drift check, build, commit, deploy, then verify the
+  live page. A free **backup runner** on a PC ([`scripts/run_local_backup.ps1`](scripts/run_local_backup.ps1))
+  publishes in the evening only if GitHub has not, and sends a Windows notification when it does.
+- **When something fails:** the previous page stays online, a `pipeline-failure` issue is opened, and the
+  page shows an "out of date" banner after 36 hours.
+- **Rollback:** Actions → *Deploy to Hugging Face Spaces* → *Run workflow* with `ref` = the last good commit,
+  or revert in the Space's file history (works even when GitHub Actions is down).
 
 ## Tech stack
 
@@ -62,8 +79,8 @@ publishing, checks the live page after deploying, and opens an issue if anything
 | Serving | FastAPI, Streamlit |
 | Visualisation | Plotly (Python and Plotly.js) |
 | Experiments | MLflow (training runs), TensorFlow/Keras (LSTM/GRU comparison notebook) |
-| Testing | pytest |
-| Automation & deployment | GitHub Actions, Docker Compose, Hugging Face Spaces |
+| Testing & quality | pytest, ruff, Docker smoke test, post-deploy page check |
+| Automation & deployment | GitHub Actions, Docker Compose, Hugging Face Spaces, Windows Task Scheduler (backup) |
 
 ## Model
 
@@ -137,7 +154,13 @@ streamlit run app.py               # dashboard (works with or without the API)
 uvicorn Api.main:app --port 8000   # API, see docs/API.md
 ```
 
-**Run the daily pipeline locally:**
+**Run the daily pipeline locally** (without publishing anything):
+
+```bash
+python scripts/daily_pipeline.py --dry-run   # tests, fetch, forecast, drift check, build site/index.html
+```
+
+or step by step:
 
 ```bash
 python scripts/fetch_geodair.py    # last 3 days, or back to the last stored day
@@ -145,6 +168,17 @@ python scripts/make_forecasts.py
 python scripts/monitor_drift.py
 python scripts/build_site.py       # then open site/index.html
 ```
+
+Both write data files in your working copy; discard them with `git checkout -- data site monitoring`.
+
+**Check the live page** (exits non-zero if it is unreachable, broken or older than 36 hours):
+
+```bash
+python scripts/check_deployed_page.py --url https://jayasaikishore-airquality-paca.static.hf.space/ --attempts 1
+```
+
+**Contributing:** create a branch, open a pull request (e.g. `gh pr create`), and merge once CI is green.
+Direct pushes to `main` are rejected.
 
 **Retrain:**
 
@@ -160,7 +194,7 @@ python scripts/build_reference.py  # refreshes the drift reference
 ├── airquality/            Shared package: features, Geod'Air client, forecasting, drift, static page
 ├── Api/                   FastAPI backend
 ├── app.py                 Streamlit dashboard
-├── scripts/               Pipeline, training and helper scripts
+├── scripts/               Pipeline (daily_pipeline.py), deploy, checks, backup runner, training
 ├── tests/                 pytest suite
 ├── data/
 │   ├── raw/               Monthly Geod'Air exports, 2025
@@ -172,14 +206,20 @@ python scripts/build_reference.py  # refreshes the drift reference
 ├── site/                  Generated static page (deployed to Hugging Face)
 ├── notebooks/             Exploratory analysis and LSTM/GRU experiments
 ├── deploy/huggingface/    Hugging Face Space card
-├── docs/API.md            API reference
-└── .github/workflows/     CI, daily pipeline, deployment
+├── docs/
+│   ├── API.md             API reference
+│   └── RELEASE.md         Release process, failure handling, rollback, secrets
+├── .github/
+│   ├── workflows/         CI, daily pipeline, deployment / rollback
+│   ├── rulesets/          Branch protection for main (importable JSON)
+│   └── dependabot.yml     Weekly updates for the pinned GitHub Actions
+└── constraints.txt        Exact, tested versions of every Python package
 ```
 
 | Requirements file | Used for |
 |---|---|
 | `requirements-api.txt` | FastAPI backend (Docker image) |
-| `requirements-pipeline.txt` | Daily pipeline and tests (GitHub Actions) |
+| `requirements-pipeline.txt` | Daily pipeline and tests (GitHub Actions, backup runner) |
 | `requirements.txt` | Streamlit dashboard |
 | `requirements-dev.txt` | Everything above, plus MLflow and the notebooks |
 | `constraints.txt` | Exact tested versions; pass with `-c constraints.txt` to any of the above |
