@@ -11,59 +11,59 @@
     "n_drifted": 5,
     "n_columns": 9,
     "reference_rows": 7640,
-    "current_rows": 16121,
+    "current_rows": 16209,
     "columns": {
       "valeur": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.14702467770532543,
+        "score": 0.14594751302102002,
         "threshold": 0.1,
         "drifted": true
       },
       "lag_1": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.13942549766538706,
+        "score": 0.13858098065394797,
         "threshold": 0.1,
         "drifted": true
       },
       "lag_24": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.15048100488754626,
+        "score": 0.1494605240924161,
         "threshold": 0.1,
         "drifted": true
       },
       "rolling_3": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.14203990280310202,
+        "score": 0.14147051547905132,
         "threshold": 0.1,
         "drifted": true
       },
       "hour": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.038054716776247784,
+        "score": 0.03453578631765056,
         "threshold": 0.1,
         "drifted": false
       },
       "weekday": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.06700556756962645,
+        "score": 0.07257914961986117,
         "threshold": 0.1,
         "drifted": false
       },
       "prediction": {
         "method": "Wasserstein distance (normed)",
-        "score": 0.1362959635121141,
+        "score": 0.13567865035491633,
         "threshold": 0.1,
         "drifted": true
       },
       "Polluant": {
         "method": "Jensen-Shannon distance",
-        "score": 0.01060611439903337,
+        "score": 0.010601441918816198,
         "threshold": 0.1,
         "drifted": false
       },
       "code site": {
         "method": "Jensen-Shannon distance",
-        "score": 0.0353928467364268,
+        "score": 0.035369117804936644,
         "threshold": 0.1,
         "drifted": false
       }
