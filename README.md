@@ -47,7 +47,10 @@ flowchart LR
     MOD --> P
 ```
 
-Every push and pull request runs the test suite (`ci.yml`).
+Every push and pull request runs lint, the test suite, a preview build of the page and a Docker build +
+smoke test (`ci.yml`). The daily job runs the tests again before publishing, checks the live page after
+deploying, and opens an issue if anything fails. Release process, rollback and secrets:
+[docs/RELEASE.md](docs/RELEASE.md).
 
 ## Tech stack
 
@@ -125,9 +128,10 @@ Then open the dashboard at http://localhost:8501 and the API docs at http://loca
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt -c constraints.txt
 
 pytest                             # run the tests
+ruff check .                       # lint (pip install ruff==0.17.3)
 streamlit run app.py               # dashboard (works with or without the API)
 uvicorn Api.main:app --port 8000   # API, see docs/API.md
 ```
@@ -135,7 +139,7 @@ uvicorn Api.main:app --port 8000   # API, see docs/API.md
 **Run the daily pipeline locally:**
 
 ```bash
-python scripts/fetch_geodair.py --days 3
+python scripts/fetch_geodair.py    # last 3 days, or back to the last stored day
 python scripts/make_forecasts.py
 python scripts/monitor_drift.py
 python scripts/build_site.py       # then open site/index.html
@@ -177,6 +181,9 @@ python scripts/build_reference.py  # refreshes the drift reference
 | `requirements-pipeline.txt` | Daily pipeline and tests (GitHub Actions) |
 | `requirements.txt` | Streamlit dashboard |
 | `requirements-dev.txt` | Everything above, plus MLflow and the notebooks |
+| `constraints.txt` | Exact tested versions; pass with `-c constraints.txt` to any of the above |
+
+Configuration is optional: every setting has a default. See [`.env.example`](.env.example).
 
 ## Screenshots
 

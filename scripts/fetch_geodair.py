@@ -18,13 +18,17 @@ from airquality import geodair  # noqa: E402
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--days", type=int, default=3, help="days to (re)download, ending today")
+    parser.add_argument("--days", default="auto",
+                        help="days to (re)download, ending at --end; 'auto' = 3, or back to the newest "
+                             "stored day after missed runs (max 30)")
     parser.add_argument("--end", type=date.fromisoformat, default=date.today(), help="last day (YYYY-MM-DD)")
     parser.add_argument("--keep-days", type=int, default=90, help="retention for stored partitions")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    days = [args.end - timedelta(days=i) for i in range(args.days - 1, -1, -1)]
+    n_days = geodair.days_to_fetch(args.end) if args.days == "auto" else int(args.days)
+    print(f"Fetching {n_days} day(s) ending {args.end}")
+    days = [args.end - timedelta(days=i) for i in range(n_days - 1, -1, -1)]
     result = geodair.fetch_days(days)
     removed = geodair.prune(keep_days=args.keep_days, today=args.end)
 

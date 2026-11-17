@@ -8,7 +8,7 @@ from tests.conftest import make_observations
 def test_unknown_sites_are_dropped(encoders, stations):
     obs = make_observations(series=(("FR02008", "PM10"), ("FR99999", "PM10"), ("FR02008", "SO2")))
     feats = build_live_features(obs, encoders, stations)
-    assert set(zip(feats[config.COL_SITE], feats[config.COL_POLLUTANT])) == {("FR02008", "PM10")}
+    assert set(zip(feats[config.COL_SITE], feats[config.COL_POLLUTANT], strict=True)) == {("FR02008", "PM10")}
     assert {"pollutant_encoded", "site_encoded", "Latitude", "hour"} <= set(feats.columns)
 
 

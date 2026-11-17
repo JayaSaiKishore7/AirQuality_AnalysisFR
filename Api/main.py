@@ -115,10 +115,10 @@ def forecast(req: ForecastRequest):
         return forecast_24h(model, encoders, req.model_dump())
     except ValueError as e:
         # unknown station/pollutant, unparseable datetime: the caller's input, not a server fault
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
         log.exception("Forecast failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 @app.get("/forecasts/latest", response_model=LiveForecastResponse)
 def latest_forecasts(site_code: Optional[str] = None, pollutant: Optional[str] = None):

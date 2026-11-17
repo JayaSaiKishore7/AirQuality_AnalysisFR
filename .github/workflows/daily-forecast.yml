@@ -3,12 +3,13 @@ name: Daily forecast
 on:
   schedule:
     # 04:30 UTC: yesterday's Geod'Air file is complete by then
+    # (GitHub often starts scheduled runs hours late; that is expected)
     - cron: "30 4 * * *"
   workflow_dispatch:
     inputs:
       days:
-        description: "Days of Geod'Air data to (re)download, e.g. 10 to backfill after missed runs"
-        default: "3"
+        description: "Days of Geod'Air data to (re)download. 'auto' = 3, or back to the last stored day after missed runs (max 30)"
+        default: "auto"
 
 permissions:
   contents: write
@@ -22,20 +23,27 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: requirements-*.txt
+          cache-dependency-path: |
+            requirements-*.txt
+            constraints.txt
 
-      - name: Install dependencies
-        run: pip install -r requirements-pipeline.txt
+      - name: Install dependencies (exact versions from constraints.txt)
+        run: pip install -r requirements-pipeline.txt -c constraints.txt
+
+      # Gate: code pushed to main is not published unless the tests pass on it,
+      # even if CI on that push did not run.
+      - name: Run tests
+        run: pytest -q
 
       - name: Pull new Geod'Air data
         env:
-          DAYS: ${{ inputs.days || '3' }}
+          DAYS: ${{ inputs.days || 'auto' }}
         run: python scripts/fetch_geodair.py --days "$DAYS"
 
       - name: Make 24h forecasts
@@ -52,7 +60,7 @@ jobs:
 
       - name: Upload Evidently report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: drift-report-${{ github.run_id }}
           path: monitoring/drift_report.html
@@ -102,3 +110,25 @@ jobs:
     needs: update
     uses: ./.github/workflows/deploy-hf.yml
     secrets: inherit
+
+  # A failed run leaves yesterday's page live; make sure someone hears about it.
+  # (This cannot fire if Actions itself is unavailable, e.g. a billing lock: see docs/RELEASE.md.)
+  report-failure:
+    needs: [update, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update pipeline-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="Daily forecast run failed on $(date -u +%F): update=${{ needs.update.result }}, deploy=${{ needs.deploy.result }}. The live page still shows the previous forecast. Logs: $RUN_URL"
+          gh label create pipeline-failure --color B60205 --description "Raised when the daily pipeline fails" 2>/dev/null || true
+          issue=$(gh issue list --label pipeline-failure --state open --json number --jq '.[0].number')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh issue create --title "Daily forecast pipeline failing" --label pipeline-failure --body "$body"
+          fi

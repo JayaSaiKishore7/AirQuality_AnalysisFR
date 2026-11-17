@@ -83,6 +83,25 @@ def fetch_days(days: list[date], obs_dir: Path = config.OBSERVATIONS_DIR,
     return result
 
 
+def days_to_fetch(today: date, obs_dir: Path = config.OBSERVATIONS_DIR,
+                  minimum: int = 3, maximum: int = 30) -> int:
+    """How many days (ending today) to download so missed runs are backfilled.
+
+    Normally `minimum` (late corrections to recent days are re-downloaded). After
+    missed runs it reaches back to the newest stored partition, capped at `maximum`.
+    """
+    stored = []
+    for p in Path(obs_dir).glob("*.csv"):
+        try:
+            stored.append(date.fromisoformat(p.stem))
+        except ValueError:
+            continue
+    past = [d for d in stored if d <= today]
+    if not past:
+        return maximum
+    return max(minimum, min(maximum, (today - max(past)).days + 1))
+
+
 def prune(obs_dir: Path = config.OBSERVATIONS_DIR, keep_days: int = 90, today: date | None = None) -> list[Path]:
     """Delete partitions older than `keep_days` so the repository stays small."""
     cutoff = (today or date.today()) - timedelta(days=keep_days)

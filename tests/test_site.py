@@ -1,16 +1,15 @@
-import json
-import re
-
 import pandas as pd
 
 from airquality import config
 from airquality.forecasting import build_live_features, forecast_all, latest_states
-from airquality.site import build_site_data, render_page
+from airquality.site import build_site_data, page_data, page_problem, render_page
+
+NOW = pd.Timestamp("2026-11-17 12:00")
 
 
-def page_data(html: str) -> dict:
-    m = re.search(r'<script type="application/json" id="site-data">(.*?)</script>', html, re.S)
-    return json.loads(m.group(1))
+def deployed(issued_at, series=({"site": "FR02008"},)):
+    return render_page({"issued_at": issued_at, "pollutants": [], "units": {}, "series": list(series),
+                        "monitoring": None, "history": []})
 
 
 def make_inputs(observations, encoders, stations, lag_model):
@@ -62,3 +61,28 @@ def test_empty_forecasts_render(stations):
     data = build_site_data(empty, pd.DataFrame(columns=[config.COL_DATE]), stations, None, None)
     assert data["series"] == [] and data["issued_at"] is None
     assert page_data(render_page(data))["series"] == []
+
+
+def test_page_problem_accepts_fresh_matching_page():
+    assert page_problem(deployed("2026-11-17 05:00:00"), NOW, max_age_hours=36,
+                        expected_issued_at="2026-11-17 05:00:00") is None
+
+
+def test_page_problem_flags_stale_page():
+    problem = page_problem(deployed("2026-11-04 12:24:19"), NOW, max_age_hours=36)
+    assert problem and "old" in problem
+    # a deliberate rollback skips the freshness check
+    assert page_problem(deployed("2026-11-04 12:24:19"), NOW, max_age_hours=None) is None
+
+
+def test_page_problem_flags_wrong_or_broken_page():
+    assert "expected" in page_problem(deployed("2026-11-16 05:00:00"), NOW,
+                                      expected_issued_at="2026-11-17 05:00:00")
+    assert page_problem("<html>Space is building</html>", NOW) == "page has no readable forecast data"
+    assert page_problem(deployed(None, series=()), NOW, max_age_hours=36) == "page has no forecasts"
+    assert "no forecast series" in page_problem(deployed("2026-11-17 05:00:00", series=()), NOW)
+
+
+def test_page_has_staleness_banner():
+    html = deployed("2026-11-17 05:00:00")
+    assert 'id="stale"' in html and "STALE_HOURS" in html

@@ -2,13 +2,13 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# curl is for the docker-compose healthcheck; every Python dependency ships a wheel,
+# curl is for the health check; every Python dependency ships a wheel,
 # so no compiler is needed
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements-api.txt .
-RUN pip install --no-cache-dir -r requirements-api.txt
+COPY requirements-api.txt constraints.txt ./
+RUN pip install --no-cache-dir -r requirements-api.txt -c constraints.txt
 
 
 COPY airquality ./airquality
@@ -17,6 +17,13 @@ COPY models ./models
 COPY data ./data
 COPY monitoring ./monitoring
 
+# the API only reads files, so it does not need root
+RUN useradd --create-home --uid 10001 app
+USER app
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=5 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
 
 CMD ["uvicorn", "Api.main:app", "--host", "0.0.0.0", "--port", "8000"]

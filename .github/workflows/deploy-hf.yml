@@ -2,12 +2,22 @@ name: Deploy to Hugging Face Spaces
 
 # Publishes site/index.html (built by the daily job) as a free *static* Space.
 # Needs repository secret HF_TOKEN (write access) and variable HF_SPACE_ID, e.g. "username/airquality-paca".
+#
+# Rollback: run this workflow manually with `ref` set to the last good commit SHA.
+# See docs/RELEASE.md.
 on:
   push:
     branches: [main]
     paths: ["site/**", "deploy/huggingface/**", ".github/workflows/deploy-hf.yml"]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA, tag or branch whose site/index.html to publish (an older commit = rollback)"
+        default: main
   workflow_call:
+
+permissions:
+  contents: read
 
 concurrency:
   group: deploy-hf
@@ -19,6 +29,8 @@ jobs:
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
+      # the daily job pushes the new page to main before calling this workflow
+      DEPLOY_REF: ${{ inputs.ref || 'main' }}
     steps:
       - name: Check configuration
         id: cfg
@@ -30,40 +42,70 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v7
+      # Tools (check script, constraints, Space card) come from this workflow's commit;
+      # only the page itself comes from DEPLOY_REF, so rolling back to an old commit still works.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: steps.cfg.outputs.enabled == 'true'
         with:
-          # the daily job pushes the new page before calling this workflow
-          ref: main
-          sparse-checkout: |
-            site
-            deploy/huggingface
+          fetch-depth: 0
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        if: steps.cfg.outputs.enabled == 'true'
+        with:
+          python-version: "3.13"
+
+      - name: Install deploy tools
+        if: steps.cfg.outputs.enabled == 'true'
+        run: pip install -q huggingface_hub==2.4.0 pandas requests -c constraints.txt
 
       - name: Stage the page
         if: steps.cfg.outputs.enabled == 'true'
         run: |
-          test -f site/index.html || { echo "::error::site/index.html missing. Run the Daily forecast workflow first."; exit 1; }
+          git fetch --quiet origin
+          if git rev-parse --verify -q "origin/$DEPLOY_REF^{commit}" >/dev/null; then target="origin/$DEPLOY_REF"; else target="$DEPLOY_REF"; fi
+          git rev-parse --verify -q "$target^{commit}" >/dev/null || { echo "::error::Unknown ref $DEPLOY_REF"; exit 1; }
+          echo "DEPLOY_SHA=$(git rev-parse --short "$target^{commit}")" >> "$GITHUB_ENV"
           mkdir space
-          cp site/index.html deploy/huggingface/README.md space/
+          git show "$target:site/index.html" > space/index.html || { echo "::error::site/index.html missing at $DEPLOY_REF. Run the Daily forecast workflow first."; exit 1; }
+          cp deploy/huggingface/README.md space/
           ls -la space
 
       - name: Upload to Space
+        id: upload
         if: steps.cfg.outputs.enabled == 'true'
         run: |
-          pip install -q huggingface_hub
           python - <<'EOF'
           import os
           from huggingface_hub import HfApi
           api = HfApi(token=os.environ["HF_TOKEN"])
           space = os.environ["HF_SPACE_ID"]
+          sha = os.environ["DEPLOY_SHA"]
           api.create_repo(space, repo_type="space", space_sdk="static", exist_ok=True)
           api.upload_folder(
               repo_id=space,
               repo_type="space",
               folder_path="space",
-              commit_message=f"Daily forecast page {os.environ['GITHUB_SHA'][:7]}",
+              commit_message=f"Forecast page from {sha} ({os.environ['DEPLOY_REF']})",
               # remove anything else (e.g. files from the earlier Docker attempt)
               delete_patterns=["*"],
           )
-          print(f"Deployed to https://huggingface.co/spaces/{space}")
+          info = api.space_info(space)
+          host = info.host or f"https://{info.subdomain}.static.hf.space"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"host={host}\n")
+          print(f"Deployed {sha} to https://huggingface.co/spaces/{space} ({host})")
           EOF
+
+      # The page visitors get must be the one just built. The daily run also requires it
+      # to be fresh; manual deploys and rollbacks may publish an older forecast on purpose.
+      - name: Verify the deployed page
+        if: steps.cfg.outputs.enabled == 'true'
+        env:
+          HOST: ${{ steps.upload.outputs.host }}
+          MAX_AGE: ${{ github.event_name == 'schedule' && '36' || '0' }}
+        run: |
+          python scripts/check_deployed_page.py \
+            --url "https://huggingface.co/spaces/$HF_SPACE_ID/resolve/main/index.html" \
+            --url "$HOST/" \
+            --expect space/index.html --max-age-hours "$MAX_AGE"
+          echo "Live: $HOST (page from \`$DEPLOY_REF\` = $DEPLOY_SHA)" >> "$GITHUB_STEP_SUMMARY"
