@@ -74,7 +74,10 @@ always-on machine or an uptime service instead.
 
 ## Branch protection
 
-`main` is protected by the repository ruleset **"Protect main"** (Settings → Rules → Rulesets):
+`main` is protected by the repository ruleset **"Protect main"**, defined in
+[`.github/rulesets/protect-main.json`](../.github/rulesets/protect-main.json). GitHub does not apply
+that file by itself: import it under Settings → Rules → Rulesets → New ruleset → *Import a ruleset*
+(re-import after editing it). It sets:
 
 - Changes go through a pull request (no approvals needed), and CI checks `lint`, `test` and
   `docker` must pass.
