@@ -1,10 +1,9 @@
 name: Daily forecast
 
+# The daily run happens on Hugging Face Jobs (scripts/daily_pipeline.py, set up with
+# scripts/setup_hf_job.py). This workflow is the manual fallback: Actions → Daily forecast → Run workflow.
+# Do not re-enable a schedule here while the Hugging Face job is active: both would push and deploy.
 on:
-  schedule:
-    # 04:30 UTC: yesterday's Geod'Air file is complete by then
-    # (GitHub often starts scheduled runs hours late; that is expected)
-    - cron: "30 4 * * *"
   workflow_dispatch:
     inputs:
       days:
